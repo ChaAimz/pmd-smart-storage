@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Search, PackagePlus, History, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Search, PackagePlus, History, ArrowUpDown, ArrowUp, ArrowDown, Package } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,10 +15,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
-import { PageHeader } from '@/components/layout/PageHeader'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePageContext } from '@/contexts/PageContext'
+import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts'
 
 export function ReceiveItems() {
   const [items, setItems] = useState<api.Item[]>([])
@@ -34,6 +35,11 @@ export function ReceiveItems() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const { toast } = useToast()
   const { user } = useAuth()
+  const { setPageInfo } = usePageContext()
+
+  useEffect(() => {
+    setPageInfo('Receive Items', 'Receive new inventory into the warehouse')
+  }, [setPageInfo])
 
   useEffect(() => {
     fetchData()
@@ -168,61 +174,148 @@ export function ReceiveItems() {
     item.sku.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  // Generate monthly data for charts (last 6 months)
+  const generateMonthlyData = (transactions: api.Transaction[]) => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+    return months.map((month, index) => ({
+      month,
+      value: Math.floor(Math.random() * 20) + 5 // Mock data - replace with real data
+    }))
+  }
+
+  const receiptChartData = generateMonthlyData(transactions)
+  const itemsChartData = generateMonthlyData(transactions)
+  const stockChartData = generateMonthlyData(transactions)
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon={PackagePlus}
-        title="Receive Items"
-        description="Receive new inventory into the warehouse"
-        actions={
-          <Button onClick={handleOpenDialog} size="lg">
-            <PackagePlus className="mr-2 h-5 w-5" />
-            Quick Receive
-          </Button>
-        }
-      />
-
       <div className="grid gap-6 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Today's Receipts</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{transactions.length}</div>
-            <p className="text-xs text-muted-foreground">Total transactions</p>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0 }}
+        >
+          <Card className="border-2 border-blue-500/20 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Today's Receipts</CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={receiptChartData}>
+                        <YAxis hide domain={['dataMin', 'dataMax']} />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                    <PackagePlus className="h-4 w-4 text-blue-500" />
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-2xl font-bold">{transactions.length}</div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{items.length}</div>
-            <p className="text-xs text-muted-foreground">Items in system</p>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="border-2 border-purple-500/20 bg-gradient-to-br from-purple-50 to-white dark:from-purple-950/20 dark:to-background">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={itemsChartData}>
+                        <YAxis hide domain={['dataMin', 'dataMax']} />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#a855f7"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="h-8 w-8 rounded-full bg-purple-500/10 flex items-center justify-center">
+                    <Package className="h-4 w-4 text-purple-500" />
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-2xl font-bold">{items.length}</div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Stock</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-500">
-              {items.reduce((sum, item) => sum + item.quantity, 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">Units in warehouse</p>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card className="border-2 border-green-500/20 bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-background">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Stock</CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={stockChartData}>
+                        <YAxis hide domain={['dataMin', 'dataMax']} />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#22c55e"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <Package className="h-4 w-4 text-green-500" />
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-2xl font-bold text-green-600">
+                {items.reduce((sum, item) => sum + item.quantity, 0)}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            Recent Receive Transactions
-          </CardTitle>
-          <CardDescription>Last 10 receive transactions</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Recent Receive Transactions
+              </CardTitle>
+              <CardDescription>Last 10 receive transactions</CardDescription>
+            </div>
+            <Button onClick={handleOpenDialog} size="lg">
+              <PackagePlus className="mr-2 h-5 w-5" />
+              Quick Receive
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="mb-4">

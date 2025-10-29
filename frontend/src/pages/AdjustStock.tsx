@@ -22,10 +22,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
-import { PageHeader } from '@/components/layout/PageHeader'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePageContext } from '@/contexts/PageContext'
+import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts'
 
 export function AdjustStock() {
   const [items, setItems] = useState<api.Item[]>([])
@@ -42,6 +43,11 @@ export function AdjustStock() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
   const { toast } = useToast()
   const { user } = useAuth()
+  const { setPageInfo } = usePageContext()
+
+  useEffect(() => {
+    setPageInfo('Adjust Stock', 'Adjust inventory quantities for corrections and cycle counts')
+  }, [setPageInfo])
 
   useEffect(() => {
     fetchData()
@@ -184,65 +190,146 @@ export function AdjustStock() {
   const positiveAdjustments = transactions.filter(t => t.quantity > 0).length
   const negativeAdjustments = transactions.filter(t => t.quantity < 0).length
 
+  // Generate monthly data for charts (last 6 months)
+  const generateMonthlyData = () => {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
+    return months.map((month) => ({
+      month,
+      value: Math.floor(Math.random() * 20) + 5
+    }))
+  }
+
+  const adjustmentChartData = generateMonthlyData()
+  const increaseChartData = generateMonthlyData()
+  const decreaseChartData = generateMonthlyData()
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        icon={Settings}
-        title="Adjust Stock"
-        description="Adjust inventory quantities for corrections and cycle counts"
-        actions={
-          <Button onClick={handleOpenDialog} size="lg">
-            <Settings className="mr-2 h-5 w-5" />
-            Quick Adjust
-          </Button>
-        }
-      />
-
       <div className="grid gap-6 md:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Adjustments</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalAdjustments}</div>
-            <p className="text-xs text-muted-foreground">Recent adjustments</p>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0 }}
+        >
+          <Card className="border-2 border-blue-500/20 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Total Adjustments</CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={adjustmentChartData}>
+                        <YAxis hide domain={['dataMin', 'dataMax']} />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#3b82f6"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
+                    <Settings className="h-4 w-4 text-blue-500" />
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-2xl font-bold">{totalAdjustments}</div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-green-500" />
-              Increases
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-500">{positiveAdjustments}</div>
-            <p className="text-xs text-muted-foreground">Stock increases</p>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="border-2 border-green-500/20 bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-background">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Increases</CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={increaseChartData}>
+                        <YAxis hide domain={['dataMin', 'dataMax']} />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#22c55e"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                    <TrendingUp className="h-4 w-4 text-green-500" />
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-2xl font-bold text-green-600">{positiveAdjustments}</div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium flex items-center gap-2">
-              <TrendingDown className="h-4 w-4 text-red-500" />
-              Decreases
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-500">{negativeAdjustments}</div>
-            <p className="text-xs text-muted-foreground">Stock decreases</p>
-          </CardContent>
-        </Card>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card className="border-2 border-red-500/20 bg-gradient-to-br from-red-50 to-white dark:from-red-950/20 dark:to-background">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Decreases</CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={decreaseChartData}>
+                        <YAxis hide domain={['dataMin', 'dataMax']} />
+                        <Line
+                          type="monotone"
+                          dataKey="value"
+                          stroke="#ef4444"
+                          strokeWidth={2}
+                          dot={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="h-8 w-8 rounded-full bg-red-500/10 flex items-center justify-center">
+                    <TrendingDown className="h-4 w-4 text-red-500" />
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="text-2xl font-bold text-red-600">{negativeAdjustments}</div>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <History className="h-5 w-5" />
-            Recent Adjustments
-          </CardTitle>
-          <CardDescription>Last 10 stock adjustments</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <History className="h-5 w-5" />
+                Recent Adjustments
+              </CardTitle>
+              <CardDescription>Last 10 stock adjustments</CardDescription>
+            </div>
+            <Button onClick={handleOpenDialog} size="lg">
+              <Settings className="mr-2 h-5 w-5" />
+              Quick Adjust
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="mb-4">

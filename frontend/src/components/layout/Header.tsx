@@ -1,7 +1,6 @@
-import { Bell, Search, User, LogOut, Settings as SettingsIcon, Package } from 'lucide-react'
+import { Bell, User, LogOut, Settings as SettingsIcon, Package } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
@@ -15,7 +14,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-export function Header() {
+interface HeaderProps {
+  pageTitle?: string
+  pageDescription?: string
+}
+
+export function Header({ pageTitle, pageDescription }: HeaderProps = {}) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
@@ -40,15 +44,14 @@ export function Header() {
         </div>
 
         <div className="flex flex-1 items-center justify-center px-8">
-          <div className="relative w-full max-w-md">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Search items, locations, SKU..."
-              className="pl-10 focus-visible:ring-2 focus-visible:ring-primary"
-              aria-label="Global search"
-            />
-          </div>
+          {pageTitle && (
+            <div className="text-center">
+              <h2 className="text-xl font-semibold">{pageTitle}</h2>
+              {pageDescription && (
+                <p className="text-sm text-muted-foreground">{pageDescription}</p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
