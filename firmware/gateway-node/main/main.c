@@ -18,16 +18,24 @@
 #include "esp_event.h"
 #include "mqtt_client.h"
 #include "cJSON.h"
+#include "led_strip.h"
+#include "driver/gpio.h"
+#include "nvs.h"
 
 static const char *TAG = "GATEWAY_NODE";
 
+/* GPIO Configuration - Adafruit ESP32-C6 Feather */
+#define NEOPIXEL_GPIO       GPIO_NUM_9   // NeoPixel LED
+#define NEOPIXEL_POWER_GPIO GPIO_NUM_20  // NeoPixel power control
+#define NEOPIXEL_COUNT      1
+
 /* WiFi Configuration */
-#define WIFI_SSID      "YOUR_WIFI_SSID"
-#define WIFI_PASS      "YOUR_WIFI_PASSWORD"
-#define WIFI_MAX_RETRY 5
+#define WIFI_SSID      "Veeraphat iPhone 15 Pro"
+#define WIFI_PASS      "gggggggg"
+#define WIFI_MAX_RETRY 10
 
 /* MQTT Configuration */
-#define MQTT_BROKER_URL "mqtt://YOUR_MQTT_BROKER:1883"
+#define MQTT_BROKER_URL "mqtt://172.20.10.3:1883"
 #define MQTT_TOPIC_STATUS "smart-storage/status"
 #define MQTT_TOPIC_COMMAND "smart-storage/command"
 #define MQTT_TOPIC_BUTTON "smart-storage/button"
@@ -38,20 +46,31 @@ static const char *TAG = "GATEWAY_NODE";
 static EventGroupHandle_t s_wifi_event_group;
 static esp_mqtt_client_handle_t mqtt_client;
 static int s_retry_num = 0;
+static led_strip_handle_t led_strip;
+static bool wifi_connected = false;
+static bool provisioned = false;
+static uint16_t node_addr = 0;
 
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
 static esp_ble_mesh_cfg_srv_t config_server;
-static esp_ble_mesh_gen_onoff_cli_t onoff_client;
+static esp_ble_mesh_client_t onoff_client;
 
-static esp_ble_mesh_client_t onoff_client_model = {
-    .publish_status = NULL,
+// Generic OnOff Server for receiving button press messages from endpoints
+static esp_ble_mesh_gen_onoff_srv_t onoff_server = {
+    .rsp_ctrl = {
+        .get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+        .set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    },
 };
+
+ESP_BLE_MESH_MODEL_PUB_DEFINE(onoff_pub, 2 + 3, ROLE_NODE);
 
 static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_CFG_SRV(&config_server),
     ESP_BLE_MESH_MODEL_GEN_ONOFF_CLI(NULL, &onoff_client),
+    ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub, &onoff_server),
 };
 
 static esp_ble_mesh_elem_t elements[] = {
@@ -64,9 +83,61 @@ static esp_ble_mesh_comp_t composition = {
     .element_count = ARRAY_SIZE(elements),
 };
 
-static esp_ble_mesh_prov_t provision = {
-    .uuid = {0xdd, 0xdd},
+// Device UUID - "ESP BLE Mesh Gateway" in ASCII
+static uint8_t dev_uuid[16] = {
+    'E', 'S', 'P', ' ', 'G', 'a', 't', 'e',
+    'w', 'a', 'y', 0x00, 0x00, 0x00, 0x00, 0x00
 };
+
+static esp_ble_mesh_prov_t provision = {
+    .uuid = dev_uuid,
+};
+
+/* NeoPixel Functions */
+static void neopixel_init(void)
+{
+    // Enable NeoPixel power
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << NEOPIXEL_POWER_GPIO),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&io_conf);
+    gpio_set_level(NEOPIXEL_POWER_GPIO, 1);  // Turn on NeoPixel power
+
+    vTaskDelay(pdMS_TO_TICKS(10));  // Wait for power to stabilize
+
+    // Configure LED strip
+    led_strip_config_t strip_config = {
+        .strip_gpio_num = NEOPIXEL_GPIO,
+        .max_leds = NEOPIXEL_COUNT,
+        .led_pixel_format = LED_PIXEL_FORMAT_GRB,
+        .led_model = LED_MODEL_WS2812,
+        .flags.invert_out = false,
+    };
+
+    led_strip_rmt_config_t rmt_config = {
+        .clk_src = RMT_CLK_SRC_DEFAULT,
+        .resolution_hz = 10 * 1000 * 1000,  // 10MHz
+        .flags.with_dma = false,
+    };
+
+    ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
+    led_strip_clear(led_strip);
+}
+
+static void neopixel_set_color(uint8_t r, uint8_t g, uint8_t b)
+{
+    led_strip_set_pixel(led_strip, 0, r, g, b);
+    led_strip_refresh(led_strip);
+}
+
+static void neopixel_off(void)
+{
+    led_strip_clear(led_strip);
+}
 
 /* WiFi Event Handler */
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
@@ -87,7 +158,31 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
+        wifi_connected = true;
         xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+    }
+}
+
+/* LED Control Task */
+static void led_control_task(void *pvParameters)
+{
+    bool blink_state = false;
+
+    while (1) {
+        if (wifi_connected) {
+            // WiFi connected - Blue solid
+            neopixel_set_color(0, 0, 255);  // Blue
+        } else {
+            // WiFi not connected - Blue blinking
+            if (blink_state) {
+                neopixel_set_color(0, 0, 255);  // Blue
+            } else {
+                neopixel_off();
+            }
+            blink_state = !blink_state;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(500));  // 500ms blink rate
     }
 }
 
@@ -120,7 +215,9 @@ static void wifi_init_sta(void)
         .sta = {
             .ssid = WIFI_SSID,
             .password = WIFI_PASS,
-            .threshold.authmode = WIFI_AUTH_WPA2_PSK,
+            .threshold.authmode = WIFI_AUTH_OPEN,
+            .scan_method = WIFI_ALL_CHANNEL_SCAN,
+            .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
         },
     };
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
@@ -203,9 +300,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                     common.ctx.app_idx = 0;
                     common.ctx.addr = node_addr;
                     common.ctx.send_ttl = 3;
-                    common.ctx.send_rel = false;
                     common.msg_timeout = 0;
-                    common.msg_role = ROLE_NODE;
                     
                     esp_ble_mesh_generic_client_set_state(&common, &set_state);
                 }
@@ -274,7 +369,22 @@ static void provisioning_cb(esp_ble_mesh_prov_cb_event_t event, esp_ble_mesh_pro
         break;
     case ESP_BLE_MESH_NODE_PROV_COMPLETE_EVT:
         ESP_LOGI(TAG, "Provisioning complete");
-        ESP_LOGI(TAG, "Node address: 0x%04x", param->node_prov_complete.addr);
+        node_addr = param->node_prov_complete.addr;
+        ESP_LOGI(TAG, "Node address: 0x%04x", node_addr);
+        provisioned = true;
+
+        // Save provisioning state to NVS
+        nvs_handle_t nvs_handle;
+        esp_err_t err = nvs_open("ble_mesh", NVS_READWRITE, &nvs_handle);
+        if (err == ESP_OK) {
+            nvs_set_u8(nvs_handle, "provisioned", 1);
+            nvs_set_u16(nvs_handle, "node_addr", node_addr);
+            nvs_commit(nvs_handle);
+            nvs_close(nvs_handle);
+            ESP_LOGI(TAG, "Provisioning data saved to NVS");
+        } else {
+            ESP_LOGE(TAG, "Failed to open NVS for saving provisioning data: %d", err);
+        }
         break;
     default:
         break;
@@ -288,10 +398,35 @@ static void config_server_cb(esp_ble_mesh_cfg_server_cb_event_t event, esp_ble_m
     }
 }
 
+static void generic_server_cb(esp_ble_mesh_generic_server_cb_event_t event, esp_ble_mesh_generic_server_cb_param_t *param)
+{
+    switch (event) {
+    case ESP_BLE_MESH_GENERIC_SERVER_STATE_CHANGE_EVT:
+        ESP_LOGI(TAG, "Generic server state changed");
+        if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET ||
+            param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK) {
+            ESP_LOGI(TAG, "Received button press from node 0x%04x", param->ctx.addr);
+            publish_button_press(param->ctx.addr);
+        }
+        break;
+    case ESP_BLE_MESH_GENERIC_SERVER_RECV_GET_MSG_EVT:
+        ESP_LOGI(TAG, "Generic server recv get msg");
+        break;
+    case ESP_BLE_MESH_GENERIC_SERVER_RECV_SET_MSG_EVT:
+        ESP_LOGI(TAG, "Generic server recv set msg");
+        if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET ||
+            param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK) {
+            ESP_LOGI(TAG, "Received button press from node 0x%04x", param->ctx.addr);
+            publish_button_press(param->ctx.addr);
+        }
+        break;
+    default:
+        break;
+    }
+}
+
 static void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event, esp_ble_mesh_generic_client_cb_param_t *param)
 {
-    uint16_t src_addr;
-    
     switch (event) {
     case ESP_BLE_MESH_GENERIC_CLIENT_GET_STATE_EVT:
         ESP_LOGI(TAG, "Generic client get state");
@@ -332,8 +467,10 @@ static esp_err_t ble_mesh_init(void)
     
     esp_ble_mesh_register_prov_callback(provisioning_cb);
     esp_ble_mesh_register_config_server_callback(config_server_cb);
+    esp_ble_mesh_register_generic_server_callback(generic_server_cb);
     esp_ble_mesh_register_generic_client_callback(generic_client_cb);
-    
+    esp_ble_mesh_register_custom_model_callback(ble_mesh_custom_model_cb);
+
     err = esp_ble_mesh_init(&provision, &composition);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize BLE Mesh");
@@ -354,17 +491,61 @@ static esp_err_t ble_mesh_init(void)
 void app_main(void)
 {
     esp_err_t err;
-    
+
+    // Set log levels for components (suppress verbose logs)
+    esp_log_level_set("mqtt_client", ESP_LOG_WARN);
+    esp_log_level_set("MQTT_CLIENT", ESP_LOG_WARN);
+    esp_log_level_set("transport_base", ESP_LOG_WARN);
+    esp_log_level_set("TRANSPORT_BASE", ESP_LOG_WARN);
+    esp_log_level_set("esp-tls", ESP_LOG_WARN);
+    esp_log_level_set("wifi", ESP_LOG_WARN);
+    esp_log_level_set("BT_GATT", ESP_LOG_WARN);
+    esp_log_level_set("BLE_MESH", ESP_LOG_WARN);  // Only show warnings/errors (hide bearer info)
+    esp_log_level_set("nvs", ESP_LOG_INFO);  // Show NVS info
+
+    // Keep our application logs at INFO level
+    esp_log_level_set(TAG, ESP_LOG_INFO);
+
     ESP_LOGI(TAG, "Smart Storage Gateway Node starting...");
-    
+
     // Initialize NVS
     err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_LOGW(TAG, "NVS partition error (0x%x), erasing...", err);
         ESP_ERROR_CHECK(nvs_flash_erase());
         err = nvs_flash_init();
+        ESP_LOGI(TAG, "NVS re-initialized after erase");
+    } else {
+        ESP_LOGI(TAG, "NVS initialized successfully");
     }
     ESP_ERROR_CHECK(err);
-    
+
+    // Check if already provisioned (load from NVS)
+    nvs_handle_t nvs_handle;
+    err = nvs_open("ble_mesh", NVS_READONLY, &nvs_handle);
+    if (err == ESP_OK) {
+        uint8_t is_provisioned = 0;
+        err = nvs_get_u8(nvs_handle, "provisioned", &is_provisioned);
+        if (err == ESP_OK && is_provisioned == 1) {
+            uint16_t saved_addr = 0;
+            err = nvs_get_u16(nvs_handle, "node_addr", &saved_addr);
+            if (err == ESP_OK) {
+                provisioned = true;
+                node_addr = saved_addr;
+                ESP_LOGI(TAG, "Loaded provisioning data from NVS");
+                ESP_LOGI(TAG, "Provisioning complete");
+                ESP_LOGI(TAG, "Node address: 0x%04x", node_addr);
+            }
+        }
+        nvs_close(nvs_handle);
+    }
+
+    // Initialize NeoPixel
+    neopixel_init();
+
+    // Start LED control task
+    xTaskCreate(led_control_task, "led_control", 2048, NULL, 5, NULL);
+
     // Initialize WiFi
     wifi_init_sta();
     
