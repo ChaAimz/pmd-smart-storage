@@ -20,18 +20,24 @@
 #include "esp_timer.h"
 #include "led_strip.h"
 #include "nvs.h"
+#include "mesh_storage.h"
 
 static const char *TAG = "ENDPOINT_NODE";
 
 /* GPIO Configuration - Using onboard components */
 #define LED_GPIO            GPIO_NUM_15  // Red LED onboard
-#define NEOPIXEL_GPIO       GPIO_NUM_9   // NeoPixel LED (shared with Boot button)
+#define NEOPIXEL_GPIO       GPIO_NUM_9   // NeoPixel LED
 #define NEOPIXEL_POWER_GPIO GPIO_NUM_20  // NeoPixel power control
-#define BUTTON_GPIO         GPIO_NUM_9   // Boot button (shared with NeoPixel)
+#define BUTTON_GPIO         GPIO_NUM_5   // Factory reset button on GPIO5
 #define BUTTON_ACTIVE_LEVEL 0
 
 /* NeoPixel Configuration */
 #define NEOPIXEL_COUNT      1
+
+/* Factory Reset Configuration */
+#define FACTORY_RESET_HOLD_TIME_MS 10000  // 10 seconds
+#define FACTORY_RESET_WARNING_1_MS 3000   // First warning at 3 seconds
+#define FACTORY_RESET_WARNING_2_MS 7000   // Second warning at 7 seconds
 
 /* Battery Configuration */
 #define BATTERY_LOW_THRESHOLD 10  // 10% battery
@@ -54,6 +60,11 @@ typedef enum {
 /* Deep Sleep Configuration */
 #define DEEP_SLEEP_TIMEOUT_MS   300000  // 5 minutes after last activity (for testing/configuration)
 #define BUTTON_WAKEUP_LEVEL     0       // Wake on button press (LOW)
+
+/* Factory Reset Configuration */
+#define FACTORY_RESET_HOLD_TIME_MS  10000  // Hold button for 10 seconds to factory reset
+#define FACTORY_RESET_WARNING_TIME_MS 3000  // Warning at 3 seconds
+#define FACTORY_RESET_CRITICAL_TIME_MS 7000 // Critical warning at 7 seconds
 
 // Device UUID - "ESP BLE Mesh Endpoint" in ASCII
 static uint8_t dev_uuid[16] = {
@@ -104,7 +115,6 @@ static esp_ble_mesh_prov_t provision = {
 };
 
 static esp_timer_handle_t sleep_timer;
-static bool button_pressed = false;
 static uint16_t node_addr = 0;
 static led_strip_handle_t led_strip;
 static led_state_t current_led_state = LED_STATE_OTHER;
@@ -112,7 +122,6 @@ static bool provisioned = false;
 static bool gateway_connected = false;
 static uint8_t battery_percent = 100;
 static bool location_indicator_active = false;
-static int64_t last_activity_time = 0;
 
 /* Forward Declarations */
 static void reset_sleep_timer(void);
@@ -220,24 +229,20 @@ static void led_toggle(void)
 }
 
 /* Button Control Functions */
-static void IRAM_ATTR button_isr_handler(void *arg)
-{
-    button_pressed = true;
-}
-
 static void button_init(void)
 {
+    // Configure GPIO5 for factory reset button
     gpio_config_t io_conf = {
-        .intr_type = GPIO_INTR_NEGEDGE,
+        .intr_type = GPIO_INTR_DISABLE,  // No interrupt - use polling
         .mode = GPIO_MODE_INPUT,
         .pin_bit_mask = (1ULL << BUTTON_GPIO),
         .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
     };
     gpio_config(&io_conf);
-    
-    gpio_install_isr_service(0);
-    gpio_isr_handler_add(BUTTON_GPIO, button_isr_handler, NULL);
+
+    ESP_LOGI(TAG, "Factory reset button initialized on GPIO%d", BUTTON_GPIO);
+    ESP_LOGI(TAG, "Hold button for 10 seconds to factory reset");
 }
 
 /* Deep Sleep Functions */
@@ -326,23 +331,32 @@ static void provisioning_cb(esp_ble_mesh_prov_cb_event_t event, esp_ble_mesh_pro
         ESP_LOGI(TAG, "Provisioning link closed");
         break;
     case ESP_BLE_MESH_NODE_PROV_COMPLETE_EVT:
-        ESP_LOGI(TAG, "Provisioning complete");
+        ESP_LOGI(TAG, "========================================");
+        ESP_LOGI(TAG, "🎉 PROVISIONING COMPLETE!");
+        ESP_LOGI(TAG, "========================================");
         node_addr = param->node_prov_complete.addr;
-        ESP_LOGI(TAG, "Node address: 0x%04x", node_addr);
         provisioned = true;
         gateway_connected = true;
 
-        // Save provisioning state to NVS
-        nvs_handle_t nvs_handle;
-        esp_err_t err = nvs_open("ble_mesh", NVS_READWRITE, &nvs_handle);
-        if (err == ESP_OK) {
-            nvs_set_u8(nvs_handle, "provisioned", 1);
-            nvs_set_u16(nvs_handle, "node_addr", node_addr);
-            nvs_commit(nvs_handle);
-            nvs_close(nvs_handle);
-            ESP_LOGI(TAG, "Provisioning data saved to NVS");
-        } else {
-            ESP_LOGE(TAG, "Failed to open NVS for saving provisioning data: %d", err);
+        // Save complete provisioning data to NVS
+        mesh_prov_data_t prov_data = {
+            .provisioned = true,
+            .node_addr = param->node_prov_complete.addr,
+            .net_idx = param->node_prov_complete.net_idx,
+            .app_idx = 0, // Will be set when AppKey is added
+            .iv_index = param->node_prov_complete.iv_index,
+        };
+
+        // Copy NetKey (always available as array)
+        memcpy(prov_data.net_key, param->node_prov_complete.net_key, 16);
+
+        // Note: DevKey is managed by BLE Mesh stack internally and not exposed in v5.5.1
+        // We only save NetKey, node address, and indices which are sufficient for restore
+
+        // Save to NVS (detailed log printed by save function)
+        esp_err_t err = mesh_storage_save_prov_data(&prov_data);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "❌ Failed to save provisioning data: %s", esp_err_to_name(err));
         }
 
         update_led_state();
@@ -364,12 +378,88 @@ static void config_server_cb(esp_ble_mesh_cfg_server_cb_event_t event, esp_ble_m
 
         // Check if this is a model app bind event
         switch (param->ctx.recv_op) {
+        case ESP_BLE_MESH_MODEL_OP_APP_KEY_ADD:
+            ESP_LOGI(TAG, "========================================");
+            ESP_LOGI(TAG, "🔑 AppKey Added!");
+            ESP_LOGI(TAG, "   Net Index: 0x%04X", param->value.state_change.appkey_add.net_idx);
+            ESP_LOGI(TAG, "   App Index: 0x%04X", param->value.state_change.appkey_add.app_idx);
+            ESP_LOGI(TAG, "========================================");
+
+            // Update provisioning data with AppKey index
+            mesh_prov_data_t prov_data;
+            if (mesh_storage_load_prov_data(&prov_data) == ESP_OK) {
+                prov_data.app_idx = param->value.state_change.appkey_add.app_idx;
+                // Copy AppKey (app_key is always available as array)
+                memcpy(prov_data.app_key, param->value.state_change.appkey_add.app_key, 16);
+                mesh_storage_save_prov_data(&prov_data);
+            }
+            break;
+
         case ESP_BLE_MESH_MODEL_OP_MODEL_APP_BIND:
-            ESP_LOGI(TAG, "Model app bind");
+            ESP_LOGI(TAG, "========================================");
+            ESP_LOGI(TAG, "🔗 Model Bound to AppKey!");
+            ESP_LOGI(TAG, "   Element Addr: 0x%04X", param->value.state_change.mod_app_bind.element_addr);
+            ESP_LOGI(TAG, "   Model ID:     0x%04X", param->value.state_change.mod_app_bind.model_id);
+            ESP_LOGI(TAG, "   Company ID:   0x%04X", param->value.state_change.mod_app_bind.company_id);
+            ESP_LOGI(TAG, "   App Index:    0x%04X", param->value.state_change.mod_app_bind.app_idx);
+            ESP_LOGI(TAG, "========================================");
+
+            // Save model binding
+            mesh_model_binding_t binding = {
+                .bound = true,
+                .app_idx = param->value.state_change.mod_app_bind.app_idx,
+            };
+
+            // Determine model ID string
+            const char *model_id = NULL;
+            if (param->value.state_change.mod_app_bind.model_id == ESP_BLE_MESH_MODEL_ID_GEN_ONOFF_SRV) {
+                model_id = "onoff_srv";
+            } else if (param->value.state_change.mod_app_bind.model_id == ESP_BLE_MESH_MODEL_ID_GEN_ONOFF_CLI) {
+                model_id = "onoff_cli";
+            }
+
+            if (model_id) {
+                // Detailed log printed by save function
+                mesh_storage_save_model_binding(model_id, &binding);
+            }
             break;
+
+        case ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET:
+            ESP_LOGI(TAG, "========================================");
+            ESP_LOGI(TAG, "📢 Model Publication Set!");
+            ESP_LOGI(TAG, "   Element Addr: 0x%04X", param->value.state_change.mod_pub_set.element_addr);
+            ESP_LOGI(TAG, "   Publish Addr: 0x%04X", param->value.state_change.mod_pub_set.pub_addr);
+            ESP_LOGI(TAG, "========================================");
+
+            // Save publication settings
+            mesh_pub_settings_t pub_settings = {
+                .publish_addr = param->value.state_change.mod_pub_set.pub_addr,
+                .app_idx = param->value.state_change.mod_pub_set.app_idx,
+                .ttl = param->value.state_change.mod_pub_set.pub_ttl,
+                .period = param->value.state_change.mod_pub_set.pub_period,
+            };
+
+            // Determine model ID string
+            model_id = NULL;
+            if (param->value.state_change.mod_pub_set.model_id == ESP_BLE_MESH_MODEL_ID_GEN_ONOFF_SRV) {
+                model_id = "onoff_srv";
+            } else if (param->value.state_change.mod_pub_set.model_id == ESP_BLE_MESH_MODEL_ID_GEN_ONOFF_CLI) {
+                model_id = "onoff_cli";
+            }
+
+            if (model_id) {
+                // Detailed log printed by save function
+                mesh_storage_save_pub_settings(model_id, &pub_settings);
+            }
+            break;
+
         case ESP_BLE_MESH_MODEL_OP_MODEL_SUB_ADD:
-            ESP_LOGI(TAG, "Model subscription add");
+            ESP_LOGI(TAG, "Model subscription add: elem_addr=0x%04x, sub_addr=0x%04x",
+                     param->value.state_change.mod_sub_add.element_addr,
+                     param->value.state_change.mod_sub_add.sub_addr);
+            // Note: Subscription addresses could be saved here if needed
             break;
+
         default:
             break;
         }
@@ -451,27 +541,112 @@ static void led_control_task(void *pvParameters)
     }
 }
 
+/* Factory Reset Handler - GPIO0 Button */
+static void check_factory_reset(void)
+{
+    static uint32_t button_hold_start = 0;
+    static bool factory_reset_in_progress = false;
+    static bool warning_shown = false;
+    static bool critical_warning_shown = false;
+
+    // Read button state (active LOW)
+    int button_state = gpio_get_level(BUTTON_GPIO);
+
+    if (button_state == BUTTON_ACTIVE_LEVEL) {
+        // Button is pressed
+        if (button_hold_start == 0) {
+            // Button just pressed
+            button_hold_start = esp_timer_get_time() / 1000; // Convert to ms
+            factory_reset_in_progress = true;
+            warning_shown = false;
+            critical_warning_shown = false;
+            ESP_LOGI(TAG, "Button pressed - hold for 10 seconds to factory reset");
+        } else {
+            // Button is being held
+            uint32_t hold_duration = (esp_timer_get_time() / 1000) - button_hold_start;
+
+            // Warning at 3 seconds
+            if (hold_duration >= FACTORY_RESET_WARNING_1_MS && !warning_shown) {
+                warning_shown = true;
+                ESP_LOGW(TAG, "⚠️  Factory reset in %d seconds...",
+                         (FACTORY_RESET_HOLD_TIME_MS - hold_duration) / 1000);
+            }
+
+            // Critical warning at 7 seconds
+            if (hold_duration >= FACTORY_RESET_WARNING_2_MS && !critical_warning_shown) {
+                critical_warning_shown = true;
+                ESP_LOGW(TAG, "🔴 FACTORY RESET IN %d SECONDS! Release button to cancel!",
+                         (FACTORY_RESET_HOLD_TIME_MS - hold_duration) / 1000);
+            }
+
+            // Factory reset at 10 seconds
+            if (hold_duration >= FACTORY_RESET_HOLD_TIME_MS) {
+                ESP_LOGW(TAG, "");
+                ESP_LOGW(TAG, "========================================");
+                ESP_LOGW(TAG, "🔴 FACTORY RESET TRIGGERED!");
+                ESP_LOGW(TAG, "========================================");
+                ESP_LOGW(TAG, "Clearing all provisioning data...");
+
+                // Clear all mesh storage
+                esp_err_t err = mesh_storage_clear();
+                if (err == ESP_OK) {
+                    ESP_LOGI(TAG, "✓ Provisioning data cleared");
+                } else {
+                    ESP_LOGE(TAG, "✗ Failed to clear provisioning data: %s", esp_err_to_name(err));
+                }
+
+                ESP_LOGW(TAG, "Restarting device in 2 seconds...");
+                vTaskDelay(pdMS_TO_TICKS(2000));
+
+                ESP_LOGW(TAG, "========================================");
+                ESP_LOGW(TAG, "🔄 RESTARTING...");
+                ESP_LOGW(TAG, "========================================");
+
+                esp_restart();
+            }
+        }
+    } else {
+        // Button is released
+        if (factory_reset_in_progress) {
+            uint32_t hold_duration = (esp_timer_get_time() / 1000) - button_hold_start;
+
+            if (hold_duration < FACTORY_RESET_HOLD_TIME_MS) {
+                // Short press (< 10 seconds)
+                if (hold_duration < 1000) {
+                    // Very short press (< 1 second) - treat as button press
+                    ESP_LOGI(TAG, "Button pressed!");
+
+                    // Turn off location indicator when button pressed
+                    if (location_indicator_active) {
+                        location_indicator_active = false;
+                        ESP_LOGI(TAG, "Location indicator turned off by button");
+                    }
+
+                    // Send button press message via Bluetooth Mesh
+                    send_button_press_message();
+
+                    // Reset sleep timer
+                    reset_sleep_timer();
+                } else {
+                    // Medium press (1-10 seconds) - factory reset cancelled
+                    ESP_LOGI(TAG, "Factory reset cancelled (held for %d ms)", hold_duration);
+                }
+            }
+
+            button_hold_start = 0;
+            factory_reset_in_progress = false;
+            warning_shown = false;
+            critical_warning_shown = false;
+        }
+    }
+}
+
 /* Main Application Task */
 static void app_task(void *pvParameters)
 {
     while (1) {
-        if (button_pressed) {
-            button_pressed = false;
-
-            ESP_LOGI(TAG, "Button pressed!");
-
-            // Turn off location indicator when button pressed
-            if (location_indicator_active) {
-                location_indicator_active = false;
-                ESP_LOGI(TAG, "Location indicator turned off by button");
-            }
-
-            // Send button press message via Bluetooth Mesh
-            send_button_press_message();
-
-            // Reset sleep timer
-            reset_sleep_timer();
-        }
+        // Check for factory reset (button hold) and handle button press
+        check_factory_reset();
 
         vTaskDelay(pdMS_TO_TICKS(100));
     }
@@ -484,9 +659,26 @@ static void generic_server_cb(esp_ble_mesh_generic_server_cb_event_t event, esp_
     case ESP_BLE_MESH_GENERIC_SERVER_STATE_CHANGE_EVT:
         ESP_LOGI(TAG, "Generic server state changed: onoff=%d", onoff_server.state.onoff);
 
-        // Update location indicator based on received state
-        location_indicator_active = onoff_server.state.onoff;
-        ESP_LOGI(TAG, "Location indicator %s", location_indicator_active ? "ON" : "OFF");
+        // Check for factory reset command (onoff=2 is special value)
+        if (onoff_server.state.onoff == 2) {
+            ESP_LOGW(TAG, "🔴 Factory reset command received via MQTT!");
+            ESP_LOGW(TAG, "Clearing provisioning data and restarting...");
+
+            // Clear all provisioning data
+            mesh_storage_clear();
+
+            // Wait a moment for logs to flush
+            vTaskDelay(pdMS_TO_TICKS(500));
+
+            // Restart device
+            esp_restart();
+        }
+
+        // Update location indicator based on received state (only for normal values 0 or 1)
+        if (onoff_server.state.onoff <= 1) {
+            location_indicator_active = onoff_server.state.onoff;
+            ESP_LOGI(TAG, "Location indicator %s", location_indicator_active ? "ON" : "OFF");
+        }
 
         reset_sleep_timer();
         break;
@@ -496,9 +688,26 @@ static void generic_server_cb(esp_ble_mesh_generic_server_cb_event_t event, esp_
     case ESP_BLE_MESH_GENERIC_SERVER_RECV_SET_MSG_EVT:
         ESP_LOGI(TAG, "Generic server recv set msg: onoff=%d", onoff_server.state.onoff);
 
-        // Update location indicator based on received state
-        location_indicator_active = onoff_server.state.onoff;
-        ESP_LOGI(TAG, "Location indicator %s", location_indicator_active ? "ON" : "OFF");
+        // Check for factory reset command (onoff=2 is special value)
+        if (onoff_server.state.onoff == 2) {
+            ESP_LOGW(TAG, "🔴 Factory reset command received via MQTT!");
+            ESP_LOGW(TAG, "Clearing provisioning data and restarting...");
+
+            // Clear all provisioning data
+            mesh_storage_clear();
+
+            // Wait a moment for logs to flush
+            vTaskDelay(pdMS_TO_TICKS(500));
+
+            // Restart device
+            esp_restart();
+        }
+
+        // Update location indicator based on received state (only for normal values 0 or 1)
+        if (onoff_server.state.onoff <= 1) {
+            location_indicator_active = onoff_server.state.onoff;
+            ESP_LOGI(TAG, "Location indicator %s", location_indicator_active ? "ON" : "OFF");
+        }
 
         reset_sleep_timer();
         break;
@@ -538,13 +747,17 @@ static esp_err_t ble_mesh_init(void)
         return err;
     }
 
-    err = esp_ble_mesh_node_prov_enable(ESP_BLE_MESH_PROV_ADV | ESP_BLE_MESH_PROV_GATT);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to enable provisioning");
-        return err;
+    // Only enable provisioning if not already provisioned
+    if (!provisioned) {
+        err = esp_ble_mesh_node_prov_enable(ESP_BLE_MESH_PROV_ADV | ESP_BLE_MESH_PROV_GATT);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to enable provisioning");
+            return err;
+        }
+        ESP_LOGI(TAG, "BLE Mesh Node initialized - Ready for provisioning");
+    } else {
+        ESP_LOGI(TAG, "BLE Mesh Node initialized - Already provisioned");
     }
-
-    ESP_LOGI(TAG, "BLE Mesh Node initialized");
 
     return ESP_OK;
 }
@@ -577,36 +790,33 @@ void app_main(void)
             break;
     }
     
-    // Initialize NVS
-    err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_LOGW(TAG, "NVS partition error (0x%x), erasing...", err);
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
-        ESP_LOGI(TAG, "NVS re-initialized after erase");
-    } else {
-        ESP_LOGI(TAG, "NVS initialized successfully");
-    }
+    // Initialize Mesh Storage (NVS)
+    err = mesh_storage_init();
     ESP_ERROR_CHECK(err);
 
     // Check if already provisioned (load from NVS)
-    nvs_handle_t nvs_handle;
-    err = nvs_open("ble_mesh", NVS_READONLY, &nvs_handle);
+    mesh_prov_data_t prov_data;
+    err = mesh_storage_load_prov_data(&prov_data);
     if (err == ESP_OK) {
-        uint8_t is_provisioned = 0;
-        err = nvs_get_u8(nvs_handle, "provisioned", &is_provisioned);
-        if (err == ESP_OK && is_provisioned == 1) {
-            uint16_t saved_addr = 0;
-            err = nvs_get_u16(nvs_handle, "node_addr", &saved_addr);
-            if (err == ESP_OK) {
-                provisioned = true;
-                node_addr = saved_addr;
-                ESP_LOGI(TAG, "Loaded provisioning data from NVS");
-                ESP_LOGI(TAG, "Provisioning complete");
-                ESP_LOGI(TAG, "Node address: 0x%04x", node_addr);
-            }
-        }
-        nvs_close(nvs_handle);
+        provisioned = true;
+        node_addr = prov_data.node_addr;
+        gateway_connected = true;
+
+        // mesh_storage_load_prov_data() already prints detailed info
+        // Just print a summary here
+        ESP_LOGI(TAG, "✅ Device is provisioned (Node: 0x%04X)", prov_data.node_addr);
+
+        // Load model bindings (detailed logs printed by load functions)
+        mesh_model_binding_t binding;
+        mesh_storage_load_model_binding("onoff_srv", &binding);
+        mesh_storage_load_model_binding("onoff_cli", &binding);
+
+        // Load publication settings (detailed logs printed by load functions)
+        mesh_pub_settings_t pub_settings;
+        mesh_storage_load_pub_settings("onoff_srv", &pub_settings);
+        mesh_storage_load_pub_settings("onoff_cli", &pub_settings);
+    } else {
+        ESP_LOGI(TAG, "ℹ️  Device not provisioned yet");
     }
 
     // Initialize GPIO

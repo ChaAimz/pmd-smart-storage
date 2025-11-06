@@ -21,6 +21,9 @@
 #include "led_strip.h"
 #include "driver/gpio.h"
 #include "nvs.h"
+#include "mesh_storage.h"
+#include "wifi_manager.h"
+#include "web_server.h"
 
 static const char *TAG = "GATEWAY_NODE";
 
@@ -28,11 +31,17 @@ static const char *TAG = "GATEWAY_NODE";
 #define NEOPIXEL_GPIO       GPIO_NUM_9   // NeoPixel LED
 #define NEOPIXEL_POWER_GPIO GPIO_NUM_20  // NeoPixel power control
 #define NEOPIXEL_COUNT      1
+#define BUTTON_GPIO         GPIO_NUM_0   // Boot button (GPIO0 - dedicated button)
+#define BUTTON_ACTIVE_LEVEL 0            // Active LOW
 
-/* WiFi Configuration */
-#define WIFI_SSID      "Veeraphat iPhone 15 Pro"
-#define WIFI_PASS      "gggggggg"
-#define WIFI_MAX_RETRY 10
+/* Factory Reset Configuration */
+#define FACTORY_RESET_HOLD_TIME_MS  10000  // Hold button for 10 seconds to factory reset
+#define FACTORY_RESET_WARNING_TIME_MS 3000  // Warning at 3 seconds
+#define FACTORY_RESET_CRITICAL_TIME_MS 7000 // Critical warning at 7 seconds
+
+/* WiFi Configuration - Now managed by WiFi Manager (stored in NVS) */
+// WiFi credentials are configured via Web UI at http://192.168.4.1
+// No need to hardcode SSID/Password here anymore
 
 /* MQTT Configuration */
 #define MQTT_BROKER_URL "mqtt://172.20.10.3:1883"
@@ -43,16 +52,12 @@ static const char *TAG = "GATEWAY_NODE";
 /* Bluetooth Mesh Configuration */
 #define CID_ESP        0x02E5
 
-static EventGroupHandle_t s_wifi_event_group;
 static esp_mqtt_client_handle_t mqtt_client;
-static int s_retry_num = 0;
 static led_strip_handle_t led_strip;
 static bool wifi_connected = false;
+static bool wifi_ap_mode = false;
 static bool provisioned = false;
 static uint16_t node_addr = 0;
-
-#define WIFI_CONNECTED_BIT BIT0
-#define WIFI_FAIL_BIT      BIT1
 
 static esp_ble_mesh_cfg_srv_t config_server;
 static esp_ble_mesh_client_t onoff_client;
@@ -139,27 +144,104 @@ static void neopixel_off(void)
     led_strip_clear(led_strip);
 }
 
-/* WiFi Event Handler */
-static void wifi_event_handler(void* arg, esp_event_base_t event_base,
-                                int32_t event_id, void* event_data)
+/* Factory Reset Task */
+static void factory_reset_task(void *pvParameters)
 {
-    if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        esp_wifi_connect();
-    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_retry_num < WIFI_MAX_RETRY) {
-            esp_wifi_connect();
-            s_retry_num++;
-            ESP_LOGI(TAG, "Retry to connect to the AP");
+    uint32_t button_hold_start = 0;
+    bool factory_reset_in_progress = false;
+    bool warning_shown = false;
+    bool critical_warning_shown = false;
+
+    while (1) {
+        // Read button state (active LOW)
+        int button_state = gpio_get_level(BUTTON_GPIO);
+
+        if (button_state == BUTTON_ACTIVE_LEVEL) {
+            // Button is pressed
+            if (button_hold_start == 0) {
+                // Button just pressed
+                button_hold_start = esp_timer_get_time() / 1000; // Convert to ms
+                factory_reset_in_progress = true;
+                warning_shown = false;
+                critical_warning_shown = false;
+                ESP_LOGI(TAG, "Button hold detected - hold for %d seconds to factory reset",
+                         FACTORY_RESET_HOLD_TIME_MS / 1000);
+            } else {
+                // Button is being held
+                uint32_t hold_duration = (esp_timer_get_time() / 1000) - button_hold_start;
+
+                // Warning at 3 seconds
+                if (hold_duration >= FACTORY_RESET_WARNING_TIME_MS && !warning_shown) {
+                    warning_shown = true;
+                    ESP_LOGW(TAG, "⚠️  Factory reset in %d seconds...",
+                             (FACTORY_RESET_HOLD_TIME_MS - hold_duration) / 1000);
+                }
+
+                // Critical warning at 7 seconds
+                if (hold_duration >= FACTORY_RESET_CRITICAL_TIME_MS && !critical_warning_shown) {
+                    critical_warning_shown = true;
+                    ESP_LOGW(TAG, "🔴 FACTORY RESET IN %d SECONDS! Release button to cancel!",
+                             (FACTORY_RESET_HOLD_TIME_MS - hold_duration) / 1000);
+                }
+
+                // Factory reset at 10 seconds
+                if (hold_duration >= FACTORY_RESET_HOLD_TIME_MS) {
+                    ESP_LOGW(TAG, "");
+                    ESP_LOGW(TAG, "========================================");
+                    ESP_LOGW(TAG, "🔴 FACTORY RESET TRIGGERED!");
+                    ESP_LOGW(TAG, "========================================");
+                    ESP_LOGW(TAG, "Clearing all provisioning data...");
+
+                    // Clear all mesh storage
+                    esp_err_t err = mesh_storage_clear();
+                    if (err == ESP_OK) {
+                        ESP_LOGI(TAG, "✓ Provisioning data cleared");
+                    } else {
+                        ESP_LOGE(TAG, "✗ Failed to clear provisioning data: %s", esp_err_to_name(err));
+                    }
+
+                    ESP_LOGW(TAG, "Restarting device in 2 seconds...");
+                    vTaskDelay(pdMS_TO_TICKS(2000));
+
+                    ESP_LOGW(TAG, "========================================");
+                    ESP_LOGW(TAG, "🔄 RESTARTING...");
+                    ESP_LOGW(TAG, "========================================");
+
+                    esp_restart();
+                }
+            }
         } else {
-            xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
+            // Button is released
+            if (factory_reset_in_progress) {
+                uint32_t hold_duration = (esp_timer_get_time() / 1000) - button_hold_start;
+                if (hold_duration < FACTORY_RESET_HOLD_TIME_MS) {
+                    ESP_LOGI(TAG, "Factory reset cancelled (held for %d ms)", hold_duration);
+                }
+                button_hold_start = 0;
+                factory_reset_in_progress = false;
+                warning_shown = false;
+                critical_warning_shown = false;
+            }
         }
-        ESP_LOGI(TAG, "Connect to the AP fail");
-    } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
-        ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-        ESP_LOGI(TAG, "Got IP:" IPSTR, IP2STR(&event->ip_info.ip));
-        s_retry_num = 0;
-        wifi_connected = true;
-        xEventGroupSetBits(s_wifi_event_group, WIFI_CONNECTED_BIT);
+
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
+/* WiFi Event Callback for LED Updates */
+static void wifi_event_led_callback(bool connected)
+{
+    wifi_connected = connected;
+
+    // Update AP mode status
+    wifi_ap_mode = wifi_manager_is_ap_active();
+
+    if (connected) {
+        ESP_LOGI(TAG, "💡 LED: WiFi connected - Solid BLUE");
+    } else if (wifi_ap_mode) {
+        ESP_LOGI(TAG, "💡 LED: AP mode active - Alternating GREEN/BLUE");
+    } else {
+        ESP_LOGI(TAG, "💡 LED: WiFi disconnected - Fast blinking BLUE");
     }
 }
 
@@ -167,13 +249,32 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 static void led_control_task(void *pvParameters)
 {
     bool blink_state = false;
+    uint8_t ap_mode_color = 0;  // 0 = GREEN, 1 = BLUE for AP mode alternating
 
     while (1) {
-        if (wifi_connected) {
-            // WiFi connected - Blue solid
+        if (wifi_connected && !wifi_ap_mode) {
+            // WiFi connected in Station mode - Solid BLUE
             neopixel_set_color(0, 0, 255);  // Blue
+
+        } else if (wifi_ap_mode && !wifi_connected) {
+            // AP Mode only (no WiFi connection) - Alternating GREEN and BLUE
+            if (blink_state) {
+                if (ap_mode_color == 0) {
+                    neopixel_set_color(0, 255, 0);  // Green
+                    ap_mode_color = 1;
+                } else {
+                    neopixel_set_color(0, 0, 255);  // Blue
+                    ap_mode_color = 0;
+                }
+            }
+            blink_state = !blink_state;
+
+        } else if (wifi_ap_mode && wifi_connected) {
+            // AP+STA mode (both active) - Solid BLUE (WiFi takes priority)
+            neopixel_set_color(0, 0, 255);  // Blue
+
         } else {
-            // WiFi not connected - Blue blinking
+            // WiFi disconnected/failed - Fast blinking BLUE
             if (blink_state) {
                 neopixel_set_color(0, 0, 255);  // Blue
             } else {
@@ -182,62 +283,9 @@ static void led_control_task(void *pvParameters)
             blink_state = !blink_state;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(500));  // 500ms blink rate
-    }
-}
-
-/* WiFi Initialization */
-static void wifi_init_sta(void)
-{
-    s_wifi_event_group = xEventGroupCreate();
-
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-    esp_netif_create_default_wifi_sta();
-
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-
-    esp_event_handler_instance_t instance_any_id;
-    esp_event_handler_instance_t instance_got_ip;
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                        ESP_EVENT_ANY_ID,
-                                                        &wifi_event_handler,
-                                                        NULL,
-                                                        &instance_any_id));
-    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT,
-                                                        IP_EVENT_STA_GOT_IP,
-                                                        &wifi_event_handler,
-                                                        NULL,
-                                                        &instance_got_ip));
-
-    wifi_config_t wifi_config = {
-        .sta = {
-            .ssid = WIFI_SSID,
-            .password = WIFI_PASS,
-            .threshold.authmode = WIFI_AUTH_OPEN,
-            .scan_method = WIFI_ALL_CHANNEL_SCAN,
-            .sort_method = WIFI_CONNECT_AP_BY_SIGNAL,
-        },
-    };
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
-
-    ESP_LOGI(TAG, "WiFi initialization finished");
-
-    EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
-            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-            pdFALSE,
-            pdFALSE,
-            portMAX_DELAY);
-
-    if (bits & WIFI_CONNECTED_BIT) {
-        ESP_LOGI(TAG, "Connected to AP SSID:%s", WIFI_SSID);
-    } else if (bits & WIFI_FAIL_BIT) {
-        ESP_LOGI(TAG, "Failed to connect to SSID:%s", WIFI_SSID);
-    } else {
-        ESP_LOGE(TAG, "UNEXPECTED EVENT");
+        // Blink rate: 500ms for normal, 250ms for fast blink when disconnected
+        uint32_t delay_ms = (wifi_connected || wifi_ap_mode) ? 500 : 250;
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
     }
 }
 
@@ -279,20 +327,52 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
             cJSON *json = cJSON_ParseWithLength(event->data, event->data_len);
             if (json != NULL) {
                 cJSON *node_addr_json = cJSON_GetObjectItem(json, "node_addr");
+                cJSON *command_json = cJSON_GetObjectItem(json, "command");
                 cJSON *led_state_json = cJSON_GetObjectItem(json, "led_state");
-                
-                if (cJSON_IsNumber(node_addr_json) && cJSON_IsBool(led_state_json)) {
+
+                // Handle factory_reset command
+                if (cJSON_IsNumber(node_addr_json) && cJSON_IsString(command_json)) {
+                    const char *command = cJSON_GetStringValue(command_json);
+                    uint16_t node_addr = (uint16_t)node_addr_json->valueint;
+
+                    if (strcmp(command, "factory_reset") == 0) {
+                        ESP_LOGI(TAG, "Sending factory reset command to node 0x%04x", node_addr);
+
+                        // Send factory reset message using Generic OnOff with special value
+                        // We use onoff=2 as a special value to indicate factory reset
+                        // (normal LED control values are 0 or 1)
+                        esp_ble_mesh_generic_client_set_state_t set_state = {0};
+                        set_state.onoff_set.op_en = false;
+                        set_state.onoff_set.onoff = 2;  // Special value for factory reset
+                        set_state.onoff_set.tid = 0;    // TID (transaction ID)
+
+                        esp_ble_mesh_client_common_param_t common = {0};
+                        common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK;
+                        common.model = &root_models[1];
+                        common.ctx.net_idx = 0;
+                        common.ctx.app_idx = 0;
+                        common.ctx.addr = node_addr;
+                        common.ctx.send_ttl = 3;
+                        common.msg_timeout = 0;
+
+                        esp_ble_mesh_generic_client_set_state(&common, &set_state);
+
+                        ESP_LOGI(TAG, "✓ Factory reset command sent to node 0x%04x", node_addr);
+                    }
+                }
+                // Handle LED control command
+                else if (cJSON_IsNumber(node_addr_json) && cJSON_IsBool(led_state_json)) {
                     uint16_t node_addr = (uint16_t)node_addr_json->valueint;
                     uint8_t led_state = cJSON_IsTrue(led_state_json) ? 1 : 0;
-                    
+
                     ESP_LOGI(TAG, "Sending LED command to node 0x%04x: %s", node_addr, led_state ? "ON" : "OFF");
-                    
+
                     // Send BLE Mesh message
                     esp_ble_mesh_generic_client_set_state_t set_state = {0};
                     set_state.onoff_set.op_en = false;
                     set_state.onoff_set.onoff = led_state;
                     set_state.onoff_set.tid = 0;
-                    
+
                     esp_ble_mesh_client_common_param_t common = {0};
                     common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK;
                     common.model = &root_models[1];
@@ -301,7 +381,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_
                     common.ctx.addr = node_addr;
                     common.ctx.send_ttl = 3;
                     common.msg_timeout = 0;
-                    
+
                     esp_ble_mesh_generic_client_set_state(&common, &set_state);
                 }
                 cJSON_Delete(json);
@@ -368,22 +448,31 @@ static void provisioning_cb(esp_ble_mesh_prov_cb_event_t event, esp_ble_mesh_pro
         ESP_LOGI(TAG, "Provisioning link closed");
         break;
     case ESP_BLE_MESH_NODE_PROV_COMPLETE_EVT:
-        ESP_LOGI(TAG, "Provisioning complete");
+        ESP_LOGI(TAG, "========================================");
+        ESP_LOGI(TAG, "🎉 PROVISIONING COMPLETE!");
+        ESP_LOGI(TAG, "========================================");
         node_addr = param->node_prov_complete.addr;
-        ESP_LOGI(TAG, "Node address: 0x%04x", node_addr);
         provisioned = true;
 
-        // Save provisioning state to NVS
-        nvs_handle_t nvs_handle;
-        esp_err_t err = nvs_open("ble_mesh", NVS_READWRITE, &nvs_handle);
-        if (err == ESP_OK) {
-            nvs_set_u8(nvs_handle, "provisioned", 1);
-            nvs_set_u16(nvs_handle, "node_addr", node_addr);
-            nvs_commit(nvs_handle);
-            nvs_close(nvs_handle);
-            ESP_LOGI(TAG, "Provisioning data saved to NVS");
-        } else {
-            ESP_LOGE(TAG, "Failed to open NVS for saving provisioning data: %d", err);
+        // Save complete provisioning data to NVS
+        mesh_prov_data_t prov_data = {
+            .provisioned = true,
+            .node_addr = param->node_prov_complete.addr,
+            .net_idx = param->node_prov_complete.net_idx,
+            .app_idx = 0, // Will be set when AppKey is added
+            .iv_index = param->node_prov_complete.iv_index,
+        };
+
+        // Copy NetKey (always available as array)
+        memcpy(prov_data.net_key, param->node_prov_complete.net_key, 16);
+
+        // Note: DevKey is managed by BLE Mesh stack internally and not exposed in v5.5.1
+        // We only save NetKey, node address, and indices which are sufficient for restore
+
+        // Save to NVS (detailed log printed by save function)
+        esp_err_t err = mesh_storage_save_prov_data(&prov_data);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "❌ Failed to save provisioning data: %s", esp_err_to_name(err));
         }
         break;
     default:
@@ -395,6 +484,84 @@ static void config_server_cb(esp_ble_mesh_cfg_server_cb_event_t event, esp_ble_m
 {
     if (event == ESP_BLE_MESH_CFG_SERVER_STATE_CHANGE_EVT) {
         ESP_LOGI(TAG, "Config server state changed");
+
+        // Check if AppKey was added or model was bound
+        switch (param->ctx.recv_op) {
+        case ESP_BLE_MESH_MODEL_OP_APP_KEY_ADD:
+            ESP_LOGI(TAG, "========================================");
+            ESP_LOGI(TAG, "🔑 AppKey Added!");
+            ESP_LOGI(TAG, "   Net Index: 0x%04X", param->value.state_change.appkey_add.net_idx);
+            ESP_LOGI(TAG, "   App Index: 0x%04X", param->value.state_change.appkey_add.app_idx);
+            ESP_LOGI(TAG, "========================================");
+
+            // Update provisioning data with AppKey index
+            mesh_prov_data_t prov_data;
+            if (mesh_storage_load_prov_data(&prov_data) == ESP_OK) {
+                prov_data.app_idx = param->value.state_change.appkey_add.app_idx;
+                // Copy AppKey (app_key is always available as array)
+                memcpy(prov_data.app_key, param->value.state_change.appkey_add.app_key, 16);
+                mesh_storage_save_prov_data(&prov_data);
+            }
+            break;
+
+        case ESP_BLE_MESH_MODEL_OP_MODEL_APP_BIND:
+            ESP_LOGI(TAG, "========================================");
+            ESP_LOGI(TAG, "🔗 Model Bound to AppKey!");
+            ESP_LOGI(TAG, "   Element Addr: 0x%04X", param->value.state_change.mod_app_bind.element_addr);
+            ESP_LOGI(TAG, "   Model ID:     0x%04X", param->value.state_change.mod_app_bind.model_id);
+            ESP_LOGI(TAG, "   Company ID:   0x%04X", param->value.state_change.mod_app_bind.company_id);
+            ESP_LOGI(TAG, "   App Index:    0x%04X", param->value.state_change.mod_app_bind.app_idx);
+            ESP_LOGI(TAG, "========================================");
+
+            // Save model binding
+            mesh_model_binding_t binding = {
+                .bound = true,
+                .app_idx = param->value.state_change.mod_app_bind.app_idx,
+            };
+
+            // Determine model ID string
+            const char *model_id = NULL;
+            if (param->value.state_change.mod_app_bind.model_id == ESP_BLE_MESH_MODEL_ID_GEN_ONOFF_CLI) {
+                model_id = "onoff_cli";
+            } else if (param->value.state_change.mod_app_bind.model_id == ESP_BLE_MESH_MODEL_ID_GEN_ONOFF_SRV) {
+                model_id = "onoff_srv";
+            }
+
+            if (model_id) {
+                // Detailed log printed by save function
+                mesh_storage_save_model_binding(model_id, &binding);
+            }
+            break;
+
+        case ESP_BLE_MESH_MODEL_OP_MODEL_PUB_SET:
+            ESP_LOGI(TAG, "========================================");
+            ESP_LOGI(TAG, "📢 Model Publication Set!");
+            ESP_LOGI(TAG, "   Element Addr: 0x%04X", param->value.state_change.mod_pub_set.element_addr);
+            ESP_LOGI(TAG, "   Publish Addr: 0x%04X", param->value.state_change.mod_pub_set.pub_addr);
+            ESP_LOGI(TAG, "========================================");
+
+            // Save publication settings
+            mesh_pub_settings_t pub_settings = {
+                .publish_addr = param->value.state_change.mod_pub_set.pub_addr,
+                .app_idx = param->value.state_change.mod_pub_set.app_idx,
+                .ttl = param->value.state_change.mod_pub_set.pub_ttl,
+                .period = param->value.state_change.mod_pub_set.pub_period,
+            };
+
+            // Determine model ID string
+            model_id = NULL;
+            if (param->value.state_change.mod_pub_set.model_id == ESP_BLE_MESH_MODEL_ID_GEN_ONOFF_CLI) {
+                model_id = "onoff_cli";
+            } else if (param->value.state_change.mod_pub_set.model_id == ESP_BLE_MESH_MODEL_ID_GEN_ONOFF_SRV) {
+                model_id = "onoff_srv";
+            }
+
+            if (model_id) {
+                // Detailed log printed by save function
+                mesh_storage_save_pub_settings(model_id, &pub_settings);
+            }
+            break;
+        }
     }
 }
 
@@ -508,37 +675,42 @@ void app_main(void)
 
     ESP_LOGI(TAG, "Smart Storage Gateway Node starting...");
 
-    // Initialize NVS
-    err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_LOGW(TAG, "NVS partition error (0x%x), erasing...", err);
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
-        ESP_LOGI(TAG, "NVS re-initialized after erase");
-    } else {
-        ESP_LOGI(TAG, "NVS initialized successfully");
-    }
+    // Initialize Mesh Storage (NVS)
+    err = mesh_storage_init();
     ESP_ERROR_CHECK(err);
 
     // Check if already provisioned (load from NVS)
-    nvs_handle_t nvs_handle;
-    err = nvs_open("ble_mesh", NVS_READONLY, &nvs_handle);
+    mesh_prov_data_t prov_data;
+    err = mesh_storage_load_prov_data(&prov_data);
     if (err == ESP_OK) {
-        uint8_t is_provisioned = 0;
-        err = nvs_get_u8(nvs_handle, "provisioned", &is_provisioned);
-        if (err == ESP_OK && is_provisioned == 1) {
-            uint16_t saved_addr = 0;
-            err = nvs_get_u16(nvs_handle, "node_addr", &saved_addr);
-            if (err == ESP_OK) {
-                provisioned = true;
-                node_addr = saved_addr;
-                ESP_LOGI(TAG, "Loaded provisioning data from NVS");
-                ESP_LOGI(TAG, "Provisioning complete");
-                ESP_LOGI(TAG, "Node address: 0x%04x", node_addr);
-            }
-        }
-        nvs_close(nvs_handle);
+        provisioned = true;
+        node_addr = prov_data.node_addr;
+
+        // mesh_storage_load_prov_data() already prints detailed info
+        // Just print a summary here
+        ESP_LOGI(TAG, "✅ Device is provisioned (Node: 0x%04X)", prov_data.node_addr);
+
+        // Load model bindings (detailed logs printed by load functions)
+        mesh_model_binding_t binding;
+        mesh_storage_load_model_binding("onoff_cli", &binding);
+        mesh_storage_load_model_binding("onoff_srv", &binding);
+
+        // Load publication settings (detailed logs printed by load functions)
+        mesh_pub_settings_t pub_settings;
+        mesh_storage_load_pub_settings("onoff_cli", &pub_settings);
+    } else {
+        ESP_LOGI(TAG, "ℹ️  Device not provisioned yet");
     }
+
+    // Initialize button GPIO for factory reset
+    gpio_config_t button_conf = {
+        .pin_bit_mask = (1ULL << BUTTON_GPIO),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+    gpio_config(&button_conf);
 
     // Initialize NeoPixel
     neopixel_init();
@@ -546,9 +718,82 @@ void app_main(void)
     // Start LED control task
     xTaskCreate(led_control_task, "led_control", 2048, NULL, 5, NULL);
 
-    // Initialize WiFi
-    wifi_init_sta();
-    
+    // Start factory reset monitor task
+    xTaskCreate(factory_reset_task, "factory_reset", 2048, NULL, 5, NULL);
+
+    // Initialize WiFi Manager
+    ESP_LOGI(TAG, "Initializing WiFi Manager...");
+    err = wifi_manager_init();
+    ESP_ERROR_CHECK(err);
+
+    // Register WiFi event callback for LED updates
+    wifi_manager_set_event_callback(wifi_event_led_callback);
+
+    // Check for saved WiFi credentials
+    wifi_credential_t credentials[WIFI_MAX_CREDENTIALS];
+    size_t count = 0;
+    wifi_manager_get_credentials(credentials, WIFI_MAX_CREDENTIALS, &count);
+
+    if (count == 0) {
+        // No saved networks - start in AP mode for initial configuration
+        ESP_LOGI(TAG, "📡 No saved WiFi networks - Starting AP mode for configuration");
+        ESP_LOGI(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        ESP_LOGI(TAG, "  Connect to WiFi: %s", WIFI_AP_SSID);
+        ESP_LOGI(TAG, "  Password: %s", WIFI_AP_PASS);
+        ESP_LOGI(TAG, "  Web UI: http://192.168.4.1");
+        ESP_LOGI(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+
+        ESP_LOGI(TAG, "🔧 Calling wifi_manager_start_ap()...");
+        esp_err_t ap_err = wifi_manager_start_ap();
+        ESP_LOGI(TAG, "🔧 wifi_manager_start_ap() returned: %s", esp_err_to_name(ap_err));
+
+        // Update LED state for AP mode
+        wifi_ap_mode = true;
+        wifi_connected = false;
+
+        // Start web server for AP mode configuration
+        err = web_server_start();
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to start web server in AP mode");
+        }
+    } else {
+        // Try to connect to saved network
+        ESP_LOGI(TAG, "Found %d saved WiFi network(s), attempting to connect...", count);
+
+        // Try to connect to the first saved network
+        ESP_LOGI(TAG, "Connecting to WiFi: %s", credentials[0].ssid);
+        err = wifi_manager_connect(credentials[0].ssid);
+
+        if (err == ESP_OK) {
+            wifi_connected = true;
+
+            // Start web server after successful WiFi connection
+            err = web_server_start();
+            if (err == ESP_OK) {
+                // Get IP address to display
+                wifi_status_t status;
+                wifi_manager_get_status(&status);
+                if (status.connected) {
+                    ESP_LOGI(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                    ESP_LOGI(TAG, "  🌐 Web UI available at http://%d.%d.%d.%d",
+                             status.ip[0], status.ip[1], status.ip[2], status.ip[3]);
+                    ESP_LOGI(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+                }
+            } else {
+                ESP_LOGE(TAG, "Failed to start web server");
+            }
+        } else {
+            // Connection failed - AP mode will be started automatically by event handler
+            ESP_LOGW(TAG, "Failed to connect to WiFi - AP mode will start automatically");
+
+            // Start web server anyway (will work in AP mode)
+            err = web_server_start();
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "Failed to start web server");
+            }
+        }
+    }
+
     // Initialize MQTT
     mqtt_app_start();
     
