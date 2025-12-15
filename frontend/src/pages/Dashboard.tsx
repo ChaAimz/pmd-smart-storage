@@ -34,7 +34,7 @@ import {
 } from 'recharts'
 import GridLayout, { WidthProvider } from 'react-grid-layout'
 import type { Layout } from 'react-grid-layout'
-import 'react-grid-layout/css/styles.css'
+import 'react-grid-layout/build/styles.css'
 import 'react-resizable/css/styles.css'
 import '@/styles/grid-layout.css'
 

@@ -54,6 +54,13 @@ typedef struct {
     uint8_t period;
 } mesh_pub_settings_t;
 
+// Structure to store subscription addresses
+#define MAX_SUBSCRIPTION_ADDRS 8
+typedef struct {
+    uint16_t sub_addrs[MAX_SUBSCRIPTION_ADDRS];
+    uint8_t sub_count;
+} mesh_subscription_t;
+
 /**
  * @brief Initialize mesh storage (NVS)
  * 
@@ -106,7 +113,7 @@ esp_err_t mesh_storage_save_pub_settings(const char *model_id, const mesh_pub_se
 
 /**
  * @brief Load publication settings from NVS
- * 
+ *
  * @param model_id Model ID
  * @param pub_settings Buffer to store loaded settings
  * @return ESP_OK on success, ESP_ERR_NOT_FOUND if not configured
@@ -114,8 +121,44 @@ esp_err_t mesh_storage_save_pub_settings(const char *model_id, const mesh_pub_se
 esp_err_t mesh_storage_load_pub_settings(const char *model_id, mesh_pub_settings_t *pub_settings);
 
 /**
+ * @brief Save subscription addresses to NVS
+ *
+ * @param model_id Model ID
+ * @param subscription Subscription data
+ * @return ESP_OK on success
+ */
+esp_err_t mesh_storage_save_subscription(const char *model_id, const mesh_subscription_t *subscription);
+
+/**
+ * @brief Load subscription addresses from NVS
+ *
+ * @param model_id Model ID
+ * @param subscription Buffer to store loaded subscriptions
+ * @return ESP_OK on success, ESP_ERR_NOT_FOUND if no subscriptions
+ */
+esp_err_t mesh_storage_load_subscription(const char *model_id, mesh_subscription_t *subscription);
+
+/**
+ * @brief Add a subscription address to a model
+ *
+ * @param model_id Model ID
+ * @param sub_addr Subscription address to add
+ * @return ESP_OK on success
+ */
+esp_err_t mesh_storage_add_subscription(const char *model_id, uint16_t sub_addr);
+
+/**
+ * @brief Remove a subscription address from a model
+ *
+ * @param model_id Model ID
+ * @param sub_addr Subscription address to remove
+ * @return ESP_OK on success
+ */
+esp_err_t mesh_storage_remove_subscription(const char *model_id, uint16_t sub_addr);
+
+/**
  * @brief Clear all mesh storage data (unprovision)
- * 
+ *
  * @return ESP_OK on success
  */
 esp_err_t mesh_storage_clear(void);

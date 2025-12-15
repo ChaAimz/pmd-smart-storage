@@ -6,22 +6,6 @@
 
 static const char *TAG = "MESH_STORAGE";
 
-// Helper function to print hex data
-static void print_hex(const char *label, const uint8_t *data, size_t len)
-{
-    if (data == NULL || len == 0) {
-        ESP_LOGI(TAG, "%s: (null)", label);
-        return;
-    }
-
-    char hex_str[128];
-    char *ptr = hex_str;
-    for (size_t i = 0; i < len && i < 32; i++) {
-        ptr += sprintf(ptr, "%02X ", data[i]);
-    }
-    ESP_LOGI(TAG, "%s: %s", label, hex_str);
-}
-
 esp_err_t mesh_storage_init(void)
 {
     esp_err_t err = nvs_flash_init();
@@ -93,18 +77,24 @@ esp_err_t mesh_storage_save_prov_data(const mesh_prov_data_t *prov_data)
     }
 
     // Print detailed save information
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "📝 PROVISIONING DATA SAVED TO NVS");
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "  Provisioned:    %s", prov_data->provisioned ? "YES" : "NO");
-    ESP_LOGI(TAG, "  Node Address:   0x%04X", prov_data->node_addr);
-    ESP_LOGI(TAG, "  Net Index:      0x%04X", prov_data->net_idx);
-    ESP_LOGI(TAG, "  App Index:      0x%04X", prov_data->app_idx);
-    ESP_LOGI(TAG, "  IV Index:       0x%08X", prov_data->iv_index);
-    print_hex("  NetKey (16B)", prov_data->net_key, 16);
-    print_hex("  AppKey (16B)", prov_data->app_key, 16);
-    print_hex("  DevKey (16B)", prov_data->dev_key, 16);
-    ESP_LOGI(TAG, "========================================");
+    printf("\n========================================\n");
+    printf("📝 PROVISIONING DATA SAVED TO NVS\n");
+    printf("========================================\n");
+    printf("  Provisioned:    %s\n", prov_data->provisioned ? "YES" : "NO");
+    printf("  Node Address:   0x%04X\n", prov_data->node_addr);
+    printf("  Net Index:      0x%04X\n", prov_data->net_idx);
+    printf("  App Index:      0x%04X\n", prov_data->app_idx);
+    printf("  IV Index:       0x%08lX\n", (unsigned long)prov_data->iv_index);
+    printf("  NetKey (16B):   ");
+    for (int i = 0; i < 16; i++) printf("%02X", prov_data->net_key[i]);
+    printf("\n");
+    printf("  AppKey (16B):   ");
+    for (int i = 0; i < 16; i++) printf("%02X", prov_data->app_key[i]);
+    printf("\n");
+    printf("  DevKey (16B):   ");
+    for (int i = 0; i < 16; i++) printf("%02X", prov_data->dev_key[i]);
+    printf("\n");
+    printf("========================================\n\n");
 
 cleanup:
     nvs_close(nvs_handle);
@@ -122,15 +112,15 @@ esp_err_t mesh_storage_load_prov_data(mesh_prov_data_t *prov_data)
     nvs_handle_t nvs_handle;
     esp_err_t err = nvs_open(MESH_NVS_NAMESPACE, NVS_READONLY, &nvs_handle);
     if (err != ESP_OK) {
-        ESP_LOGW(TAG, "Failed to open NVS for reading: %s", esp_err_to_name(err));
+        printf("⚠️  Failed to open NVS namespace '%s': %s\n", MESH_NVS_NAMESPACE, esp_err_to_name(err));
         return err;
     }
-    
+
     // Load provisioned flag
     uint8_t provisioned = 0;
     err = nvs_get_u8(nvs_handle, NVS_KEY_PROVISIONED, &provisioned);
     if (err != ESP_OK || provisioned == 0) {
-        ESP_LOGI(TAG, "Device not provisioned");
+        printf("ℹ️  NVS key '%s' not found or = 0 (err: %s)\n", NVS_KEY_PROVISIONED, esp_err_to_name(err));
         nvs_close(nvs_handle);
         return ESP_ERR_NOT_FOUND;
     }
@@ -168,18 +158,24 @@ esp_err_t mesh_storage_load_prov_data(mesh_prov_data_t *prov_data)
     if (err != ESP_OK) goto cleanup;
 
     // Print detailed load information
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "📂 PROVISIONING DATA LOADED FROM NVS");
-    ESP_LOGI(TAG, "========================================");
-    ESP_LOGI(TAG, "  Provisioned:    %s", prov_data->provisioned ? "YES" : "NO");
-    ESP_LOGI(TAG, "  Node Address:   0x%04X", prov_data->node_addr);
-    ESP_LOGI(TAG, "  Net Index:      0x%04X", prov_data->net_idx);
-    ESP_LOGI(TAG, "  App Index:      0x%04X", prov_data->app_idx);
-    ESP_LOGI(TAG, "  IV Index:       0x%08X", prov_data->iv_index);
-    print_hex("  NetKey (16B)", prov_data->net_key, 16);
-    print_hex("  AppKey (16B)", prov_data->app_key, 16);
-    print_hex("  DevKey (16B)", prov_data->dev_key, 16);
-    ESP_LOGI(TAG, "========================================");
+    printf("\n========================================\n");
+    printf("📂 PROVISIONING DATA LOADED FROM NVS\n");
+    printf("========================================\n");
+    printf("  Provisioned:    %s\n", prov_data->provisioned ? "YES" : "NO");
+    printf("  Node Address:   0x%04X\n", prov_data->node_addr);
+    printf("  Net Index:      0x%04X\n", prov_data->net_idx);
+    printf("  App Index:      0x%04X\n", prov_data->app_idx);
+    printf("  IV Index:       0x%08lX\n", (unsigned long)prov_data->iv_index);
+    printf("  NetKey (16B):   ");
+    for (int i = 0; i < 16; i++) printf("%02X", prov_data->net_key[i]);
+    printf("\n");
+    printf("  AppKey (16B):   ");
+    for (int i = 0; i < 16; i++) printf("%02X", prov_data->app_key[i]);
+    printf("\n");
+    printf("  DevKey (16B):   ");
+    for (int i = 0; i < 16; i++) printf("%02X", prov_data->dev_key[i]);
+    printf("\n");
+    printf("========================================\n\n");
 
 cleanup:
     nvs_close(nvs_handle);
@@ -369,6 +365,172 @@ esp_err_t mesh_storage_load_pub_settings(const char *model_id, mesh_pub_settings
 cleanup:
     nvs_close(nvs_handle);
     return err;
+}
+
+esp_err_t mesh_storage_save_subscription(const char *model_id, const mesh_subscription_t *subscription)
+{
+    if (model_id == NULL || subscription == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open(MESH_NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to open NVS: %s", esp_err_to_name(err));
+        return err;
+    }
+
+    // Create keys for this model
+    char sub_count_key[32];
+    char sub_addrs_key[32];
+    snprintf(sub_count_key, sizeof(sub_count_key), "%s_sub_cnt", model_id);
+    snprintf(sub_addrs_key, sizeof(sub_addrs_key), "%s_sub_addrs", model_id);
+
+    // Save subscription count
+    err = nvs_set_u8(nvs_handle, sub_count_key, subscription->sub_count);
+    if (err != ESP_OK) goto cleanup;
+
+    // Save subscription addresses (as blob)
+    if (subscription->sub_count > 0) {
+        err = nvs_set_blob(nvs_handle, sub_addrs_key, subscription->sub_addrs,
+                          subscription->sub_count * sizeof(uint16_t));
+        if (err != ESP_OK) goto cleanup;
+    }
+
+    err = nvs_commit(nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to commit NVS: %s", esp_err_to_name(err));
+        goto cleanup;
+    }
+
+    ESP_LOGI(TAG, "📝 Subscription Saved: %s", model_id);
+    ESP_LOGI(TAG, "   Count: %d", subscription->sub_count);
+    for (int i = 0; i < subscription->sub_count; i++) {
+        ESP_LOGI(TAG, "   [%d] 0x%04X", i, subscription->sub_addrs[i]);
+    }
+
+cleanup:
+    nvs_close(nvs_handle);
+    return err;
+}
+
+esp_err_t mesh_storage_load_subscription(const char *model_id, mesh_subscription_t *subscription)
+{
+    if (model_id == NULL || subscription == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    memset(subscription, 0, sizeof(mesh_subscription_t));
+
+    nvs_handle_t nvs_handle;
+    esp_err_t err = nvs_open(MESH_NVS_NAMESPACE, NVS_READONLY, &nvs_handle);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    // Create keys for this model
+    char sub_count_key[32];
+    char sub_addrs_key[32];
+    snprintf(sub_count_key, sizeof(sub_count_key), "%s_sub_cnt", model_id);
+    snprintf(sub_addrs_key, sizeof(sub_addrs_key), "%s_sub_addrs", model_id);
+
+    // Load subscription count
+    uint8_t count = 0;
+    err = nvs_get_u8(nvs_handle, sub_count_key, &count);
+    if (err != ESP_OK || count == 0) {
+        nvs_close(nvs_handle);
+        return ESP_ERR_NOT_FOUND;
+    }
+    subscription->sub_count = count;
+
+    // Load subscription addresses
+    size_t blob_len = count * sizeof(uint16_t);
+    err = nvs_get_blob(nvs_handle, sub_addrs_key, subscription->sub_addrs, &blob_len);
+    if (err != ESP_OK) {
+        nvs_close(nvs_handle);
+        return err;
+    }
+
+    ESP_LOGI(TAG, "📂 Subscription Loaded: %s", model_id);
+    ESP_LOGI(TAG, "   Count: %d", subscription->sub_count);
+    for (int i = 0; i < subscription->sub_count; i++) {
+        ESP_LOGI(TAG, "   [%d] 0x%04X", i, subscription->sub_addrs[i]);
+    }
+
+    nvs_close(nvs_handle);
+    return ESP_OK;
+}
+
+esp_err_t mesh_storage_add_subscription(const char *model_id, uint16_t sub_addr)
+{
+    if (model_id == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Load existing subscriptions
+    mesh_subscription_t subscription;
+    esp_err_t err = mesh_storage_load_subscription(model_id, &subscription);
+    if (err == ESP_ERR_NOT_FOUND) {
+        // No existing subscriptions, create new
+        memset(&subscription, 0, sizeof(mesh_subscription_t));
+    } else if (err != ESP_OK) {
+        return err;
+    }
+
+    // Check if already subscribed
+    for (int i = 0; i < subscription.sub_count; i++) {
+        if (subscription.sub_addrs[i] == sub_addr) {
+            ESP_LOGW(TAG, "Already subscribed to 0x%04X", sub_addr);
+            return ESP_OK;
+        }
+    }
+
+    // Check if we have space
+    if (subscription.sub_count >= MAX_SUBSCRIPTION_ADDRS) {
+        ESP_LOGE(TAG, "Maximum subscription addresses reached (%d)", MAX_SUBSCRIPTION_ADDRS);
+        return ESP_ERR_NO_MEM;
+    }
+
+    // Add new subscription
+    subscription.sub_addrs[subscription.sub_count] = sub_addr;
+    subscription.sub_count++;
+
+    return mesh_storage_save_subscription(model_id, &subscription);
+}
+
+esp_err_t mesh_storage_remove_subscription(const char *model_id, uint16_t sub_addr)
+{
+    if (model_id == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    // Load existing subscriptions
+    mesh_subscription_t subscription;
+    esp_err_t err = mesh_storage_load_subscription(model_id, &subscription);
+    if (err != ESP_OK) {
+        return err;
+    }
+
+    // Find and remove the subscription
+    bool found = false;
+    for (int i = 0; i < subscription.sub_count; i++) {
+        if (subscription.sub_addrs[i] == sub_addr) {
+            // Shift remaining addresses
+            for (int j = i; j < subscription.sub_count - 1; j++) {
+                subscription.sub_addrs[j] = subscription.sub_addrs[j + 1];
+            }
+            subscription.sub_count--;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        ESP_LOGW(TAG, "Subscription 0x%04X not found", sub_addr);
+        return ESP_ERR_NOT_FOUND;
+    }
+
+    return mesh_storage_save_subscription(model_id, &subscription);
 }
 
 esp_err_t mesh_storage_clear(void)

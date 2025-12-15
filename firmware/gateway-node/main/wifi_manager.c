@@ -33,10 +33,6 @@ static esp_netif_t *s_sta_netif = NULL;
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
 {
-    printf("*** WIFI EVENT: base=%s, id=%ld ***\n",
-           event_base == WIFI_EVENT ? "WIFI_EVENT" : (event_base == IP_EVENT ? "IP_EVENT" : "OTHER"),
-           event_id);
-
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
         ESP_LOGI(TAG, "Station mode started, connecting...");
@@ -79,12 +75,8 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
             s_event_callback(true);
         }
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_AP_START) {
-        printf("\n*** WIFI_EVENT_AP_START HANDLER CALLED! ***\n");
-        ESP_LOGI(TAG, "🎉 WIFI_EVENT_AP_START received!");
-        ESP_LOGI(TAG, "📡 AP mode is now ACTIVE - SSID: %s", WIFI_AP_SSID);
-        ESP_LOGI(TAG, "📱 You can now connect to this WiFi network!");
+        ESP_LOGI(TAG, "🎉 AP mode is now ACTIVE - SSID: %s", WIFI_AP_SSID);
         s_ap_active = true;
-        printf("*** s_ap_active set to TRUE ***\n\n");
 
         // Start DNS server for captive portal (CRITICAL for iOS)
         esp_err_t dns_err = dns_server_start();

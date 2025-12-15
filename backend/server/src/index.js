@@ -8,7 +8,7 @@ require('dotenv').config();
 
 const Database = require('./database');
 const InventoryService = require('./services/inventoryService');
-const MqttHandler = require('./services/mqttHandler');
+const MqttHandler = require('./services/mqtt/mqttHandler');
 
 // Logger configuration
 const logger = winston.createLogger({
