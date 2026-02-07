@@ -17,6 +17,7 @@
 #include "driver/gpio.h"
 #include "driver/rtc_io.h"
 #include "esp_sleep.h"
+#include "esp_pm.h" // Added for Light Sleep Power Management
 #include "esp_timer.h"
 #include "led_strip.h"
 #include "nvs.h"
@@ -104,6 +105,7 @@ static esp_ble_mesh_comp_t composition = {
     .cid = CID_ESP,
     .elements = elements,
     .element_count = ARRAY_SIZE(elements),
+    .features = ESP_BLE_MESH_FEAT_PROV | ESP_BLE_MESH_FEAT_LOW_POWER,
 };
 
 static esp_ble_mesh_prov_t provision = {
@@ -245,7 +247,8 @@ static void button_init(void)
     ESP_LOGI(TAG, "Hold button for 10 seconds to factory reset");
 }
 
-/* Deep Sleep Functions */
+/* Deep Sleep Functions - DEPRECATED for LPN */
+/*
 static void sleep_timer_callback(void *arg)
 {
     // Disable deep sleep until provisioned
@@ -282,6 +285,8 @@ static void sleep_timer_init(void)
     esp_timer_create(&timer_args, &sleep_timer);
     reset_sleep_timer();
 }
+*/
+static void reset_sleep_timer(void) {} // Stub to satisfy any remaining calls
 
 /* Bluetooth Mesh Message Sending */
 static void send_button_press_message(void)
@@ -350,15 +355,39 @@ static void provisioning_cb(esp_ble_mesh_prov_cb_event_t event, esp_ble_mesh_pro
         // Copy NetKey (always available as array)
         memcpy(prov_data.net_key, param->node_prov_complete.net_key, 16);
 
-        // Note: DevKey is managed by BLE Mesh stack internally and not exposed in v5.5.1
-        // We only save NetKey, node address, and indices which are sufficient for restore
-
-        // Save to NVS (detailed log printed by save function)
+        // Save to NVS
         esp_err_t err = mesh_storage_save_prov_data(&prov_data);
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "❌ Failed to save provisioning data: %s", esp_err_to_name(err));
         }
 
+        update_led_state();
+
+        // Enable LPN functionality
+        esp_ble_mesh_lpn_t lpn_conf = {
+            .min_queue_size = 2,
+            .poll_timeout_ms = 10000, // 10 seconds poll timeout
+            .msg_recv_window_ms = 100,
+        };
+        
+        err = esp_ble_mesh_lpn_enable(&lpn_conf);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to enable LPN: %d", err);
+        } else {
+            ESP_LOGI(TAG, "LPN Enabled");
+        }
+        break;
+    case ESP_BLE_MESH_LPN_ENABLE_COMP_EVT:
+        ESP_LOGI(TAG, "LPN Enable Complete, err_code %d", param->lpn_enable_comp.err_code);
+        break;
+    case ESP_BLE_MESH_LPN_FRIENDSHIP_ESTABLISH_EVT:
+        ESP_LOGI(TAG, "Friendship established with 0x%04x", param->lpn_friendship_establish.friend_addr);
+        gateway_connected = true; // Assuming Friend is the gateway or connected to it
+        update_led_state();
+        break;
+    case ESP_BLE_MESH_LPN_FRIENDSHIP_TERMINATE_EVT:
+        ESP_LOGW(TAG, "Friendship terminated with 0x%04x", param->lpn_friendship_terminate.friend_addr);
+        gateway_connected = false;
         update_led_state();
         break;
     case ESP_BLE_MESH_NODE_PROV_RESET_EVT:
@@ -487,8 +516,6 @@ static void led_control_task(void *pvParameters)
                 location_indicator_active = false;
                 ESP_LOGI(TAG, "Location indicator OFF (from BLE Mesh)");
             }
-
-            reset_sleep_timer();
         }
 
         update_led_state();
@@ -625,12 +652,11 @@ static void check_factory_reset(void)
                     // Send button press message via Bluetooth Mesh
                     send_button_press_message();
 
-                    // Reset sleep timer
                     reset_sleep_timer();
-                } else {
-                    // Medium press (1-10 seconds) - factory reset cancelled
-                    ESP_LOGI(TAG, "Factory reset cancelled (held for %d ms)", hold_duration);
-                }
+        } else {
+            // Medium press (1-10 seconds) - factory reset cancelled
+            ESP_LOGI(TAG, "Factory reset cancelled (held for %d ms)", hold_duration);
+        }
             }
 
             button_hold_start = 0;
@@ -709,7 +735,6 @@ static void generic_server_cb(esp_ble_mesh_generic_server_cb_event_t event, esp_
             ESP_LOGI(TAG, "Location indicator %s", location_indicator_active ? "ON" : "OFF");
         }
 
-        reset_sleep_timer();
         break;
     default:
         break;
@@ -859,8 +884,30 @@ void app_main(void)
         return;
     }
     
-    // Initialize sleep timer
-    sleep_timer_init();
+    // Configure Power Management for Light Sleep
+    #if CONFIG_PM_ENABLE
+    esp_pm_config_t pm_config = {
+        .max_freq_mhz = 80, // Lower max freq to save power
+        .min_freq_mhz = 40,
+        .light_sleep_enable = true
+    };
+    err = esp_pm_configure(&pm_config);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "PM Configure failed: %d", err);
+    } else {
+        ESP_LOGI(TAG, "Power Management enabled with Light Sleep");
+    }
+    #endif
+
+    // Check if already provisioned and enable LPN if so
+    if (provisioned) {
+        esp_ble_mesh_lpn_t lpn_conf = {
+            .min_queue_size = 2,
+            .poll_timeout_ms = 10000,
+            .msg_recv_window_ms = 100,
+        };
+        esp_ble_mesh_lpn_enable(&lpn_conf);
+    }
 
     // Create LED control task
     xTaskCreate(led_control_task, "led_control", 4096, NULL, 5, NULL);

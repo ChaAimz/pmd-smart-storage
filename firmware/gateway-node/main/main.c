@@ -122,6 +122,7 @@ static esp_ble_mesh_comp_t composition = {
     .cid = CID_ESP,
     .elements = elements,
     .element_count = ARRAY_SIZE(elements),
+    .features = ESP_BLE_MESH_FEAT_PROV | ESP_BLE_MESH_FEAT_FRIEND,
 };
 
 // Device UUID - "ESP BLE Mesh Gateway" in ASCII
@@ -1395,6 +1396,12 @@ static void provisioning_cb(esp_ble_mesh_prov_cb_event_t event, esp_ble_mesh_pro
         if (err != ESP_OK) {
             ESP_LOGE(TAG, "❌ Failed to save provisioning data: %s", esp_err_to_name(err));
         }
+        break;
+    case ESP_BLE_MESH_FRIEND_FRIENDSHIP_ESTABLISH_EVT:
+        ESP_LOGI(TAG, "Friendship established with LPN 0x%04x", param->friend_friendship_establish.lpn_addr);
+        break;
+    case ESP_BLE_MESH_FRIEND_FRIENDSHIP_TERMINATE_EVT:
+        ESP_LOGW(TAG, "Friendship terminated with LPN 0x%04x", param->friend_friendship_terminate.lpn_addr);
         break;
     default:
         break;

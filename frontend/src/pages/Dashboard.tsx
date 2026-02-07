@@ -32,16 +32,16 @@ import {
   ResponsiveContainer,
   Legend
 } from 'recharts'
-import GridLayout, { WidthProvider } from 'react-grid-layout'
-import type { Layout } from 'react-grid-layout'
-import 'react-grid-layout/build/styles.css'
+import { ReactGridLayout, WidthProvider } from 'react-grid-layout/legacy'
+import type { LayoutItem } from 'react-grid-layout'
+import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import '@/styles/grid-layout.css'
 
-const ResponsiveGridLayout = WidthProvider(GridLayout)
+const ResponsiveGridLayout = WidthProvider(ReactGridLayout)
 
 // Default layout configuration
-const defaultLayout: Layout[] = [
+const defaultLayout: LayoutItem[] = [
   { i: 'stats-1', x: 0, y: 0, w: 3, h: 2, minW: 2, minH: 2 },
   { i: 'stats-2', x: 3, y: 0, w: 3, h: 2, minW: 2, minH: 2 },
   { i: 'stats-3', x: 6, y: 0, w: 3, h: 2, minW: 2, minH: 2 },
@@ -62,7 +62,7 @@ export function Dashboard() {
   const { toast } = useToast()
 
   // Layout state
-  const [layout, setLayout] = useState<Layout[]>(() => {
+  const [layout, setLayout] = useState<LayoutItem[]>(() => {
     const savedLayout = localStorage.getItem('dashboard-layout')
     return savedLayout ? JSON.parse(savedLayout) : defaultLayout
   })
@@ -72,8 +72,8 @@ export function Dashboard() {
   }, [])
 
   // Save layout to localStorage when it changes
-  const handleLayoutChange = (newLayout: Layout[]) => {
-    setLayout(newLayout)
+  const handleLayoutChange = (newLayout: readonly LayoutItem[]) => {
+    setLayout([...newLayout])
     localStorage.setItem('dashboard-layout', JSON.stringify(newLayout))
   }
 
