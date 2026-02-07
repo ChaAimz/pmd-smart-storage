@@ -1,15 +1,26 @@
 # PMD Smart Storage Device
 
-End-to-end smart warehouse platform combining:
+[![Platform](https://img.shields.io/badge/Platform-IoT%20Warehouse-0A7EA4?style=for-the-badge)](https://github.com/ChaAimz/pmd-smart-storage)
+[![Frontend](https://img.shields.io/badge/Frontend-React%2019-61DAFB?style=for-the-badge&logo=react&logoColor=111827)](frontend)
+[![Backend](https://img.shields.io/badge/Backend-Node.js%20%2B%20Express-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](backend/server)
+[![MQTT](https://img.shields.io/badge/Messaging-MQTT-660066?style=for-the-badge&logo=eclipsemosquitto&logoColor=white)](docs/mqtt)
+[![Firmware](https://img.shields.io/badge/Firmware-ESP32--C6-CC4B37?style=for-the-badge&logo=espressif&logoColor=white)](firmware)
+[![Database](https://img.shields.io/badge/Database-SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](backend/server/data)
+[![License](https://img.shields.io/badge/License-MIT-F59E0B?style=for-the-badge)](#license)
 
-- ESP32-C6 endpoint nodes (LED + button) over Bluetooth Mesh
-- ESP32-C6 gateway (BLE Mesh <-> MQTT bridge)
-- Node.js backend API + SQLite
-- React dashboard for inventory operations
+Smart warehouse platform that integrates BLE Mesh devices, MQTT messaging, backend inventory services, and a web dashboard for day-to-day operations.
 
-The system is designed for real-time pick/receive workflows, inventory visibility, and physical location indication in storage areas.
+## Quick Navigation
 
-## Architecture
+- [System Architecture](#system-architecture)
+- [Feature Overview](#feature-overview)
+- [Tech Stack](#tech-stack)
+- [Quick Start Local Development](#quick-start-local-development)
+- [API Highlights](#api-highlights)
+- [Firmware Workflow](#firmware-workflow-esp32-c6)
+- [Documentation Index](#documentation-index)
+
+## System Architecture
 
 ```text
 [React Frontend] <----HTTP----> [Node.js Backend + SQLite]
@@ -27,14 +38,25 @@ The system is designed for real-time pick/receive workflows, inventory visibilit
                          [ESP32-C6 Endpoint Nodes]
 ```
 
-## Key Capabilities
+## Feature Overview
 
-- Inventory master data and stock transaction management
-- Low-stock detection and purchase-order planning
-- Location management mapped to mesh node addresses
-- LED indication commands from API to physical endpoints
-- MQTT event ingestion for button-press and gateway status
-- Seed tooling for realistic demo datasets and users
+| Domain | Capability |
+| --- | --- |
+| Inventory | Item master data, stock movements, transaction history |
+| Planning | Low-stock detection and purchase-order creation |
+| Location | Mapping items to physical mesh node addresses |
+| Automation | LED indication commands from API to devices |
+| Real-time | MQTT ingestion for button events and gateway status |
+| Demo Ops | Seed scripts with realistic users and warehouse data |
+
+## Runtime Snapshot
+
+| Service | Default URL / Endpoint | Status |
+| --- | --- | --- |
+| Frontend | `http://localhost:5173` | ![Ready](https://img.shields.io/badge/Ready-Frontend-22C55E) |
+| Backend | `http://localhost:3001` | ![Ready](https://img.shields.io/badge/Ready-API-22C55E) |
+| Health Check | `http://localhost:3001/health` | ![Monitor](https://img.shields.io/badge/Monitor-Health-0EA5E9) |
+| MQTT Broker | `mqtt://localhost:1883` | ![Broker](https://img.shields.io/badge/Broker-MQTT-8B5CF6) |
 
 ## Repository Structure
 
@@ -64,7 +86,7 @@ smart-storage-device/
 | Firmware | ESP-IDF (ESP32-C6), ESP BLE Mesh |
 | Messaging | Mosquitto MQTT |
 
-## Quick Start (Local Development)
+## Quick Start Local Development
 
 ### 1. Prerequisites
 
@@ -129,7 +151,7 @@ npm run dev
 
 ## Default Seed Credentials
 
-When `npm run seed` is executed in `backend/server`, the following demo users are available:
+When `npm run seed` is executed in `backend/server`, demo users are:
 
 - `admin / admin123`
 - `manager / manager123`
@@ -146,7 +168,7 @@ When `npm run seed` is executed in `backend/server`, the following demo users ar
 - `POST /api/locations/:address/led`
 - `POST /api/purchase-orders`
 
-For backend deep-dive docs, see `backend/server/README.md`.
+Backend deep-dive docs: `backend/server/README.md`
 
 ## Firmware Workflow (ESP32-C6)
 
@@ -176,8 +198,8 @@ More setup details:
 
 ## Data and Persistence
 
-- Active backend database file: `backend/server/data/warehouse.db`
-- Additional inventory DB file tracked in repository: `backend/server/data/inventory.db`
+- Active backend DB: `backend/server/data/warehouse.db`
+- Additional tracked DB: `backend/server/data/inventory.db`
 
 ## Testing and Validation
 
@@ -193,4 +215,4 @@ More setup details:
 
 ## License
 
-MIT (declared in project package metadata).
+MIT (declared in project package metadata)
