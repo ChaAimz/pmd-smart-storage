@@ -1,120 +1,196 @@
-# Smart Storage Device - Bluetooth Mesh Inventory Management System
+# PMD Smart Storage Device
 
-## Project Overview
+End-to-end smart warehouse platform combining:
 
-This project implements a Smart Storage system for managing 200-500 inventory items in a 15x10 meter area. Each storage endpoint has an LED for position indication and a button for pick confirmation.
+- ESP32-C6 endpoint nodes (LED + button) over Bluetooth Mesh
+- ESP32-C6 gateway (BLE Mesh <-> MQTT bridge)
+- Node.js backend API + SQLite
+- React dashboard for inventory operations
 
-## System Architecture
+The system is designed for real-time pick/receive workflows, inventory visibility, and physical location indication in storage areas.
 
-### Hardware Components
+## Architecture
 
-- **ESP32-C6 Microcontroller**: Main controller for each node
-- **LED Indicator**: Position identification
-- **Push Button**: Pick confirmation
-- **LiPo Battery 4000mAh**: Power source with multi-year operation capability
-- **Bluetooth Mesh Network**: Reliable wireless communication
-
-### Network Structure
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                  Central Server                         │
-│            (Inventory Management System)                │
-└──────────────────────┬──────────────────────────────────┘
-                       │ Wi-Fi/MQTT
-                       │
-                ┌──────▼──────┐
-                │   Gateway   │
-                │  (ESP32-C6) │
-                └──────┬──────┘
-                       │ Bluetooth Mesh
-        ┌──────────────┼──────────────┐
-        │              │              │
-   ┌────▼────┐   ┌────▼────┐   ┌────▼────┐
-   │ Node 1  │   │ Node 2  │   │ Node N  │
-   │ LED+Btn │   │ LED+Btn │   │ LED+Btn │
-   └─────────┘   └─────────┘   └─────────┘
+```text
+[React Frontend] <----HTTP----> [Node.js Backend + SQLite]
+                                      ^
+                                      | MQTT
+                                      v
+                               [MQTT Broker]
+                                      ^
+                                      | Wi-Fi / MQTT
+                                      v
+                           [ESP32-C6 Gateway Node]
+                                      ^
+                                      | BLE Mesh
+                                      v
+                         [ESP32-C6 Endpoint Nodes]
 ```
 
-## Features
+## Key Capabilities
 
-- ✅ **Long Battery Life**: Multi-year operation with 4000mAh battery
-- ✅ **Scalable**: Easily add up to 500+ endpoints
-- ✅ **Reliable**: Mesh network with automatic routing
-- ✅ **Low Cost**: ESP32-C6 based solution
-- ✅ **Energy Efficient**: Deep sleep mode with wake-on-button
+- Inventory master data and stock transaction management
+- Low-stock detection and purchase-order planning
+- Location management mapped to mesh node addresses
+- LED indication commands from API to physical endpoints
+- MQTT event ingestion for button-press and gateway status
+- Seed tooling for realistic demo datasets and users
 
-## Project Structure
+## Repository Structure
 
-```
+```text
 smart-storage-device/
-├── firmware/
-│   ├── endpoint-node/          # ESP32-C6 endpoint firmware
-│   ├── gateway-node/            # ESP32-C6 gateway firmware
-│   └── common/                  # Shared libraries
+├── frontend/                  # React + Vite dashboard
 ├── backend/
-│   ├── server/                  # Central inventory server
-│   └── api/                     # REST API endpoints
+│   └── server/                # Node.js API, MQTT integration, SQLite
+├── firmware/
+│   ├── endpoint-node/         # ESP32-C6 endpoint firmware
+│   └── gateway-node/          # ESP32-C6 gateway firmware
 ├── docs/
-│   ├── hardware/                # Hardware specifications
-│   ├── provisioning/            # Setup guides
-│   └── architecture/            # System architecture
-└── tools/
-    └── provisioning/            # Configuration tools
+│   ├── firmware/              # ESP-IDF setup
+│   ├── mqtt/                  # Mosquitto setup and scripts
+│   ├── provisioning/          # BLE Mesh provisioning guide
+│   ├── hardware/              # Hardware setup and BOM
+│   └── testing/               # End-to-end test guide
+└── README.md
 ```
 
-## Getting Started
+## Tech Stack
 
-### Prerequisites
+| Layer | Technology |
+| --- | --- |
+| Frontend | React 19, TypeScript, Vite, Tailwind/Flowbite |
+| Backend | Node.js, Express, MQTT.js, SQLite3 |
+| Firmware | ESP-IDF (ESP32-C6), ESP BLE Mesh |
+| Messaging | Mosquitto MQTT |
 
-- ESP-IDF v5.1 or later
-- Node.js v18+ (for backend)
-- nRF Mesh mobile app (for provisioning)
+## Quick Start (Local Development)
 
-### Hardware Requirements
+### 1. Prerequisites
 
-- ESP32-C6-DevKitC-1 (or compatible)
-- LED (3.3V compatible)
-- Push button
-- LiPo battery 4000mAh with protection circuit
-- Resistors: 220Ω (LED), 10kΩ (pull-up)
+- Node.js 18+
+- npm
+- Mosquitto MQTT broker (local)
+- ESP-IDF v5.1+ (only if building firmware)
 
-## Quick Start
+### 2. Backend Setup
 
-1. **Flash Endpoint Firmware**
-   ```bash
-   cd firmware/endpoint-node
-   idf.py build flash monitor
-   ```
+```bash
+cd backend/server
+npm install
+cp .env.example .env
+```
 
-2. **Flash Gateway Firmware**
-   ```bash
-   cd firmware/gateway-node
-   idf.py build flash monitor
-   ```
+Recommended local config in `backend/server/.env`:
 
-3. **Start Backend Server**
-   ```bash
-   cd backend/server
-   npm install
-   npm start
-   ```
+```env
+PORT=3001
+MQTT_BROKER_URL=mqtt://localhost:1883
+NODE_ENV=development
+LOG_LEVEL=info
+```
 
-4. **Provision Network**
-   - Use nRF Mesh app to provision nodes
-   - Configure groups and publish/subscribe settings
+Run backend:
 
-## Documentation
+```bash
+npm start
+```
 
-- [Hardware Setup Guide](docs/hardware/setup.md)
-- [Provisioning Guide](docs/provisioning/guide.md)
-- [API Documentation](docs/api/README.md)
-- [System Architecture](docs/architecture/overview.md)
+Optional seed data:
+
+```bash
+npm run seed
+```
+
+### 3. Frontend Setup
+
+```bash
+cd frontend
+npm install
+```
+
+Create/update `frontend/.env`:
+
+```env
+VITE_API_URL=http://localhost:3001/api
+```
+
+Run frontend:
+
+```bash
+npm run dev
+```
+
+### 4. Verify Services
+
+- Frontend: `http://localhost:5173`
+- Backend health: `http://localhost:3001/health`
+- API base: `http://localhost:3001/api`
+
+## Default Seed Credentials
+
+When `npm run seed` is executed in `backend/server`, the following demo users are available:
+
+- `admin / admin123`
+- `manager / manager123`
+- `operator / operator123`
+
+## API Highlights
+
+- `GET /health`
+- `POST /api/auth/login`
+- `GET /api/items`
+- `GET /api/items/low-stock`
+- `POST /api/transactions`
+- `GET /api/locations`
+- `POST /api/locations/:address/led`
+- `POST /api/purchase-orders`
+
+For backend deep-dive docs, see `backend/server/README.md`.
+
+## Firmware Workflow (ESP32-C6)
+
+### Endpoint Node
+
+```bash
+cd firmware/endpoint-node
+idf.py set-target esp32c6
+idf.py build
+idf.py -p COMx flash monitor
+```
+
+### Gateway Node
+
+```bash
+cd firmware/gateway-node
+idf.py set-target esp32c6
+idf.py build
+idf.py -p COMx flash monitor
+```
+
+More setup details:
+
+- `docs/firmware/esp-idf-setup.md`
+- `docs/provisioning/guide.md`
+- `docs/mqtt/mosquitto-setup.md`
+
+## Data and Persistence
+
+- Active backend database file: `backend/server/data/warehouse.db`
+- Additional inventory DB file tracked in repository: `backend/server/data/inventory.db`
+
+## Testing and Validation
+
+- Full system test plan: `docs/testing/complete-system-test.md`
+- MQTT helper scripts: `docs/mqtt/test-mqtt.ps1`
+
+## Documentation Index
+
+- Hardware: `docs/hardware/setup.md`, `docs/hardware/bom.md`
+- MQTT: `docs/mqtt/README.md`, `docs/mqtt/mosquitto-setup.md`
+- Provisioning: `docs/provisioning/guide.md`
+- Firmware environment: `docs/firmware/esp-idf-setup.md`
 
 ## License
 
-MIT License
-
-## Contributors
-
-Smart Storage Team
+MIT (declared in project package metadata).
