@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
 import {
@@ -59,7 +59,7 @@ export function Dashboard() {
   const [transactions, setTransactions] = useState<api.Transaction[]>([])
   const [purchaseOrders, setPurchaseOrders] = useState<api.PurchaseOrder[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const { toast } = useToast()
+
 
   // Layout state
   const [layout, setLayout] = useState<LayoutItem[]>(() => {
@@ -81,10 +81,7 @@ export function Dashboard() {
   const resetLayout = () => {
     setLayout(defaultLayout)
     localStorage.setItem('dashboard-layout', JSON.stringify(defaultLayout))
-    toast({
-      title: 'Layout Reset',
-      description: 'Dashboard layout has been reset to default',
-    })
+    toast.success('Dashboard layout has been reset to default')
   }
 
   async function fetchData() {
@@ -100,11 +97,7 @@ export function Dashboard() {
       setPurchaseOrders(posData)
     } catch (error) {
       console.error('Error fetching data:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load dashboard data',
-        variant: 'destructive'
-      })
+      toast.error('Failed to load dashboard data')
     } finally {
       setIsLoading(false)
     }

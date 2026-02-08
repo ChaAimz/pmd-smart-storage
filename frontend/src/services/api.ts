@@ -1,5 +1,56 @@
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+// Generic API functions
+export async function get(url: string, params?: Record<string, any>): Promise<any> {
+  const token = localStorage.getItem('token');
+  const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+  const response = await fetch(`${API_BASE_URL}${url}${queryString}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    }
+  });
+  return response.json();
+}
+
+export async function post(url: string, data: any): Promise<any> {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    },
+    body: JSON.stringify(data)
+  });
+  return response.json();
+}
+
+export async function put(url: string, data: any): Promise<any> {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    },
+    body: JSON.stringify(data)
+  });
+  return response.json();
+}
+
+export async function del(url: string): Promise<any> {
+  const token = localStorage.getItem('token');
+  const response = await fetch(`${API_BASE_URL}${url}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    }
+  });
+  return response.json();
+}
+
 export interface User {
   id: number;
   username: string;
@@ -15,6 +66,7 @@ export interface Item {
   name: string;
   category: string;
   quantity: number;
+  minQuantity?: number;
   reorder_point: number;
   reorder_quantity: number;
   safety_stock: number;
@@ -119,6 +171,8 @@ export async function createPurchaseOrder(data: {
   items: Array<{ item_id: number; sku: string; name: string; quantity: number; unit_cost: number }>;
   supplier_name: string;
   created_by: number;
+  total_cost?: number;
+  status?: string;
 }): Promise<{ id: number }> {
   const response = await fetch(`${API_BASE_URL}/purchase-orders`, {
     method: 'POST',

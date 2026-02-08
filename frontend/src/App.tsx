@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { Toaster } from './components/ui/toaster'
+import { Toaster } from './components/ui/sonner'
 import { Layout } from './components/layout/Layout'
 import { Dashboard } from './pages/Dashboard'
 import { ReceiveItems } from './pages/ReceiveItems'
@@ -11,6 +11,10 @@ import { ManageLocations } from './pages/ManageLocations'
 import InventoryPlanning from './pages/InventoryPlanning'
 import Profile from './pages/Profile'
 import Login from './pages/Login'
+import { PRList } from './pages/PRList'
+import { CreatePR } from './pages/CreatePR'
+import { PRReceive } from './pages/PRReceive'
+import { PRDetail } from './pages/PRDetail'
 
 // Protected Route Component
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -58,9 +62,13 @@ function App() {
             <Route path="profile" element={<Profile />} />
             <Route path="analytics" element={<div className="p-6">Analytics - Coming Soon</div>} />
             <Route path="settings" element={<div className="p-6">Settings - Coming Soon</div>} />
+            <Route path="prs" element={<PRList />} />
+            <Route path="prs/create" element={<CreatePR />} />
+            <Route path="prs/:id" element={<PRDetail />} />
+            <Route path="prs/:id/receive" element={<PRReceive />} />
           </Route>
         </Routes>
-        <Toaster />
+        <Toaster position="top-right" richColors />
       </BrowserRouter>
     </AuthProvider>
   )

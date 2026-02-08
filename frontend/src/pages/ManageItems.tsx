@@ -23,7 +23,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import * as api from '@/services/api'
 
 // Using api.Item type from services/api.ts
@@ -40,7 +40,7 @@ export function ManageItems() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [sortBy, setSortBy] = useState<'name' | 'quantity' | 'updated'>('name')
-  const { toast } = useToast()
+
 
   useEffect(() => {
     async function fetchItems() {
@@ -50,11 +50,7 @@ export function ManageItems() {
         setItems(data)
       } catch (error) {
         console.error('Error fetching items:', error)
-        toast({
-          title: 'Error',
-          description: 'Failed to load items',
-          variant: 'destructive'
-        })
+        toast.error('Failed to load items')
       } finally {
         setIsLoading(false)
       }
@@ -99,21 +95,13 @@ export function ManageItems() {
   }
 
   const confirmDelete = () => {
-    toast({
-      title: 'Item Deleted',
-      description: `${selectedItem?.name} has been removed from inventory`,
-      variant: 'success',
-    })
+    toast.success(`${selectedItem?.name} has been removed from inventory`)
     setShowDeleteDialog(false)
     setSelectedItem(null)
   }
 
   const handleExport = () => {
-    toast({
-      title: 'Export Started',
-      description: 'Your data is being exported...',
-      variant: 'success',
-    })
+    toast.success('Your data is being exported...')
   }
 
   return (
@@ -222,11 +210,7 @@ export function ManageItems() {
               </Button>
               <Button onClick={() => {
                 setShowCreateDialog(false)
-                toast({
-                  title: 'Item Created',
-                  description: 'New item has been added to inventory',
-                  variant: 'success',
-                })
+                toast.success('New item has been added to inventory')
               }}>
                 Create Item
               </Button>
@@ -441,11 +425,7 @@ export function ManageItems() {
             </Button>
             <Button onClick={() => {
               setShowEditDialog(false)
-              toast({
-                title: 'Item Updated',
-                description: `${selectedItem?.name} has been updated successfully`,
-                variant: 'success',
-              })
+              toast.success(`${selectedItem?.name} has been updated successfully`)
             }}>
               Save Changes
             </Button>

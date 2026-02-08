@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -41,7 +41,7 @@ export function AdjustStock() {
   const [filterText, setFilterText] = useState('')
   const [sortColumn, setSortColumn] = useState<'item' | 'adjustment' | 'time' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const { toast } = useToast()
+
   const { user } = useAuth()
   const { setPageInfo } = usePageContext()
 
@@ -64,11 +64,7 @@ export function AdjustStock() {
       setTransactions(transactionsData.filter(t => t.transaction_type === 'adjust'))
     } catch (error) {
       console.error('Error fetching data:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load data',
-        variant: 'destructive'
-      })
+      toast.error('Failed to load data')
     } finally {
       setIsLoading(false)
     }
@@ -143,11 +139,7 @@ export function AdjustStock() {
 
   const handleAdjust = async () => {
     if (!selectedItem || !quantity || parseInt(quantity) <= 0 || !reason) {
-      toast({
-        title: 'Invalid Input',
-        description: 'Please fill in all required fields',
-        variant: 'destructive'
-      })
+      toast.error('Please fill in all required fields')
       return
     }
 
@@ -164,20 +156,13 @@ export function AdjustStock() {
         user_id: user?.id || 1
       })
 
-      toast({
-        title: 'Success',
-        description: `Stock adjusted: ${adjustmentType === 'increase' ? '+' : '-'}${quantity} units`,
-      })
+      toast.success(`Stock adjusted: ${adjustmentType === 'increase' ? '+' : '-'}${quantity} units`)
 
       setShowAdjustDialog(false)
       fetchData()
     } catch (error) {
       console.error('Error creating adjustment:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to create adjustment',
-        variant: 'destructive'
-      })
+      toast.error('Failed to create adjustment')
     }
   }
 

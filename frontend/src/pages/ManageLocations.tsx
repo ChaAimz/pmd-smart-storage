@@ -15,17 +15,27 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { PageHeader } from '@/components/layout/PageHeader'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
+
+interface LocationItem {
+  id: number
+  name: string
+  quantity: number
+}
 
 interface Location {
   id: number
   code: string
   zone: string
+  aisle?: string
+  shelf?: string
   capacity: number
+  occupied: number
   status: string
+  items?: LocationItem[]
 }
 
 const zones = ['A', 'B', 'C', 'All']
@@ -38,7 +48,7 @@ export function ManageLocations() {
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null)
   const [showDetailsDialog, setShowDetailsDialog] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const { toast } = useToast()
+
 
   useEffect(() => {
     fetchLocations()
@@ -51,11 +61,7 @@ export function ManageLocations() {
       setLocations(data)
     } catch (error) {
       console.error('Error fetching locations:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load locations',
-        variant: 'destructive'
-      })
+      toast.error('Failed to load locations')
     } finally {
       setIsLoading(false)
     }
@@ -159,11 +165,7 @@ export function ManageLocations() {
               </Button>
               <Button onClick={() => {
                 setShowCreateDialog(false)
-                toast({
-                  title: 'Location Created',
-                  description: 'New storage location has been added',
-                  variant: 'success',
-                })
+                toast.success('New storage location has been added')
               }}>
                 Create Location
               </Button>
@@ -284,9 +286,9 @@ export function ManageLocations() {
                       <p className="font-bold">{location.code}</p>
                       <p className="text-[10px]">{getOccupancyPercentage(location)}%</p>
                     </div>
-                    {location.items > 0 && (
+                    {location.items && location.items.length > 0 && (
                       <div className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                        {location.items}
+                        {location.items.length}
                       </div>
                     )}
                   </button>
@@ -407,7 +409,7 @@ export function ManageLocations() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Items</span>
-                    <span className="font-medium">{selectedLocation.items}</span>
+                    <span className="font-medium">{selectedLocation.items?.length || 0}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-muted-foreground">Status</span>

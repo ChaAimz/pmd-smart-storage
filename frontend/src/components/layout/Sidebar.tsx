@@ -9,7 +9,8 @@ import {
   TrendingUp,
   BarChart3,
   Settings,
-  User
+  User,
+  FileText
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -55,6 +56,16 @@ const navSections: NavSection[] = [
         title: 'Adjust Stock',
         href: '/adjust',
         icon: PackageSearch,
+      },
+    ]
+  },
+  {
+    title: 'Procurement',
+    items: [
+      {
+        title: 'Purchase Requisitions',
+        href: '/prs',
+        icon: FileText,
       },
     ]
   },

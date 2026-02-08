@@ -37,7 +37,7 @@ import {
 } from 'lucide-react'
 import * as api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 
 export default function InventoryPlanning() {
@@ -50,7 +50,7 @@ export default function InventoryPlanning() {
   const [sortColumn, setSortColumn] = useState<'name' | 'urgency' | 'value' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const { user } = useAuth()
-  const { toast } = useToast()
+
 
   useEffect(() => {
     fetchData()
@@ -67,11 +67,7 @@ export default function InventoryPlanning() {
       setPurchaseOrders(orders)
     } catch (error) {
       console.error('Error fetching data:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load inventory planning data',
-        variant: 'destructive'
-      })
+      toast.error('Failed to load inventory planning data')
     } finally {
       setIsLoading(false)
     }
@@ -166,11 +162,7 @@ export default function InventoryPlanning() {
 
   const handleCreatePO = async () => {
     if (selectedItems.length === 0) {
-      toast({
-        title: 'No items selected',
-        description: 'Please select at least one item',
-        variant: 'destructive'
-      })
+      toast.error('Please select at least one item')
       return
     }
 
@@ -178,6 +170,8 @@ export default function InventoryPlanning() {
       const items = lowStockItems.filter(item => selectedItems.includes(item.id))
       const itemsJson = items.map(item => ({
         item_id: item.id,
+        sku: item.sku,
+        name: item.name,
         quantity: item.reorder_quantity || 0,
         unit_cost: item.unit_cost || 0
       }))
@@ -186,27 +180,18 @@ export default function InventoryPlanning() {
 
       await api.createPurchaseOrder({
         supplier_name: 'Default Supplier',
-        items_json: JSON.stringify(itemsJson),
-        total_cost: totalCost,
-        status: 'pending',
+        items: itemsJson,
         created_by: user?.id || 0
       })
 
-      toast({
-        title: 'Success',
-        description: 'Purchase order created successfully'
-      })
+      toast.success('Purchase order created successfully')
 
       setShowCreatePODialog(false)
       setSelectedItems([])
       fetchData()
     } catch (error) {
       console.error('Error creating PO:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to create purchase order',
-        variant: 'destructive'
-      })
+      toast.error('Failed to create purchase order')
     }
   }
 

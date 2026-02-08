@@ -12,11 +12,11 @@ import {
   User, Mail, Shield, Calendar, Save, 
   Lock, Bell, Activity, LogOut 
 } from 'lucide-react'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 
 export default function Profile() {
   const { user, logout } = useAuth()
-  const { toast } = useToast()
+
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState({
     fullName: user?.fullName || '',
@@ -26,10 +26,7 @@ export default function Profile() {
   if (!user) return null
 
   const handleSave = () => {
-    toast({
-      title: 'Profile Updated',
-      description: 'Your profile has been updated successfully.',
-    })
+    toast.success('Profile updated successfully')
     setIsEditing(false)
   }
 

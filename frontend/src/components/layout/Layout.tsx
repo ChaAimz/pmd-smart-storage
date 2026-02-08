@@ -3,7 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { RightSidebar } from './RightSidebar'
-import { Toaster } from '@/components/ui/toaster'
+
 import { PageProvider, usePageContext } from '@/contexts/PageContext'
 
 function LayoutContent() {
@@ -26,7 +26,7 @@ function LayoutContent() {
       <main className={`ml-64 mt-16 p-8 transition-all duration-300 ${getMarginRight()}`}>
         <Outlet />
       </main>
-      <Toaster />
+
     </div>
   )
 }

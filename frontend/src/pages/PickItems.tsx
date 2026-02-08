@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { useToast } from '@/hooks/use-toast'
+import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -33,7 +33,7 @@ export function PickItems() {
   const [filterText, setFilterText] = useState('')
   const [sortColumn, setSortColumn] = useState<'item' | 'quantity' | 'time' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
-  const { toast } = useToast()
+
   const { user } = useAuth()
   const { setPageInfo } = usePageContext()
 
@@ -57,11 +57,7 @@ export function PickItems() {
       setTransactions(pickTransactions)
     } catch (error) {
       console.error('Error fetching data:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to load data',
-        variant: 'destructive'
-      })
+      toast.error('Failed to load data')
     } finally {
       setIsLoading(false)
     }
@@ -135,20 +131,12 @@ export function PickItems() {
 
   const handlePick = async () => {
     if (!selectedItem || !quantity || parseInt(quantity) <= 0) {
-      toast({
-        title: 'Invalid Input',
-        description: 'Please select an item and enter a valid quantity',
-        variant: 'destructive'
-      })
+      toast.error('Please select an item and enter a valid quantity')
       return
     }
 
     if (parseInt(quantity) > selectedItem.quantity) {
-      toast({
-        title: 'Insufficient Stock',
-        description: `Only ${selectedItem.quantity} units available`,
-        variant: 'destructive'
-      })
+      toast.error(`Only ${selectedItem.quantity} units available`)
       return
     }
 
@@ -161,20 +149,13 @@ export function PickItems() {
         user_id: user?.id || 1
       })
 
-      toast({
-        title: 'Success',
-        description: `Picked ${quantity} units of ${selectedItem.name}`,
-      })
+      toast.success(`Picked ${quantity} units of ${selectedItem.name}`)
 
       setShowPickDialog(false)
       fetchData()
     } catch (error) {
       console.error('Error creating pick transaction:', error)
-      toast({
-        title: 'Error',
-        description: 'Failed to create pick transaction',
-        variant: 'destructive'
-      })
+      toast.error('Failed to create pick transaction')
     }
   }
 
