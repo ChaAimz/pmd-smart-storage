@@ -185,8 +185,8 @@ export function ReceiveItems() {
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Today's Receipts</CardTitle>
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-48">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
                       <LineChart data={receiptChartData}>
                         <YAxis hide domain={['dataMin', 'dataMax']} />
                         <Line
@@ -221,8 +221,8 @@ export function ReceiveItems() {
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle>
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-48">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
                       <LineChart data={itemsChartData}>
                         <YAxis hide domain={['dataMin', 'dataMax']} />
                         <Line
@@ -257,8 +257,8 @@ export function ReceiveItems() {
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Stock</CardTitle>
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-48">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
                       <LineChart data={stockChartData}>
                         <YAxis hide domain={['dataMin', 'dataMax']} />
                         <Line

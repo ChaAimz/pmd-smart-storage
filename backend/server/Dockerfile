@@ -13,7 +13,7 @@ RUN apk add --no-cache wget
 
 # Copy source code - using V2 files
 COPY src/index-new.js ./src/index.js
-COPY src/database-new.js ./src/database.js
+COPY src/database-new.js ./src/database-new.js
 COPY src/routes/api-v2.js ./src/routes/api.js
 COPY src/services/ ./src/services/
 COPY data/ ./data/

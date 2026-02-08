@@ -201,8 +201,8 @@ export function AdjustStock() {
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Total Adjustments</CardTitle>
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-48">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
                       <LineChart data={adjustmentChartData}>
                         <YAxis hide domain={['dataMin', 'dataMax']} />
                         <Line
@@ -237,8 +237,8 @@ export function AdjustStock() {
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Increases</CardTitle>
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-48">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
                       <LineChart data={increaseChartData}>
                         <YAxis hide domain={['dataMin', 'dataMax']} />
                         <Line
@@ -273,8 +273,8 @@ export function AdjustStock() {
               <div className="flex items-center justify-between gap-3">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Decreases</CardTitle>
                 <div className="flex items-center gap-3">
-                  <div className="h-12 w-48">
-                    <ResponsiveContainer width="100%" height="100%">
+                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
                       <LineChart data={decreaseChartData}>
                         <YAxis hide domain={['dataMin', 'dataMax']} />
                         <Line

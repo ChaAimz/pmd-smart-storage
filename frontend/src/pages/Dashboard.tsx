@@ -450,8 +450,9 @@ export function Dashboard() {
               <CardDescription>Daily picks and receives</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={chartData}>
+              <div className="w-full h-[300px] min-h-[300px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="date" className="text-xs" />
                   <YAxis className="text-xs" />
@@ -460,7 +461,8 @@ export function Dashboard() {
                   <Area type="monotone" dataKey="receives" stackId="1" stroke="#10b981" fill="#10b981" fillOpacity={0.6} name="Receives" />
                   <Area type="monotone" dataKey="picks" stackId="1" stroke="#ef4444" fill="#ef4444" fillOpacity={0.6} name="Picks" />
                 </AreaChart>
-              </ResponsiveContainer>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
         </div>
