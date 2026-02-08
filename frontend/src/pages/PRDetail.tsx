@@ -2,6 +2,15 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as api from '@/services/api';
+
+// Helper functions to handle both old and new API response formats
+const getItemName = (item: any): string => {
+  return item?.name || item?.master_name || item?.local_name || 'Unknown'
+}
+
+const getItemSku = (item: any): string => {
+  return item?.sku || item?.master_sku || item?.local_sku || 'N/A'
+}
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -86,25 +95,25 @@ export function PRDetail() {
       const data = response.data;
       
       const ws = XLSX.utils.json_to_sheet([
-        ['เอกสารขอซื้อ (Purchase Requisition)'],
+        ['Purchase Requisition'],
         [''],
-        ['เลขที่ PR:', data.pr_number],
-        ['วันที่:', new Date(data.pr_date).toLocaleDateString('th-TH')],
-        ['วันที่ต้องการ:', new Date(data.required_date).toLocaleDateString('th-TH')],
+        ['PR Number:', data.pr_number],
+        ['Date:', new Date(data.pr_date).toLocaleDateString('th-TH')],
+        ['Required Date:', new Date(data.required_date).toLocaleDateString('th-TH')],
         ['ความสำคัญ:', data.priority],
-        ['ผู้ขอ:', data.requester_name],
-        ['แผนก:', data.department_name],
-        ['คลัง:', data.store_name],
-        ['หมายเหตุ:', data.notes || '-'],
+        ['Requester:', data.requester_name],
+        ['Department:', data.department_name],
+        ['Store:', data.store_name],
+        ['Notes:', data.notes || '-'],
         [''],
-        ['รายการที่ขอ:']
+        ['Requested Items:']
       ]);
 
-      const itemsHeader = ['ลำดับ', 'รหัส', 'รายการ', 'หน่วย', 'จำนวน', 'ราคาประมาณ/หน่วย', 'รวม'];
+      const itemsHeader = ['No.', 'Code/SKU', 'Item', 'Unit', 'Quantity', 'Est. Unit Price', 'Total'];
       const itemsData = data.items.map((item: any, idx: number) => [
         idx + 1,
-        item.sku,
-        item.item_name,
+        getItemSku(item),
+        item.item_name || getItemName(item),
         item.unit,
         item.quantity,
         item.estimated_unit_cost,
@@ -117,16 +126,16 @@ export function PRDetail() {
       
       XLSX.utils.sheet_add_aoa(ws, [
         [],
-        ['รวมมูลค่า:', '', '', '', '', '', data.total_amount],
+        ['Total Amount:', '', '', '', '', '', data.total_amount],
         [],
         ['==============================================='],
-        ['สำหรับฝ่ายจัดซื้อ (กรอกข้อมูลตอนซื้อ):'],
-        ['เลข PO:', '', 'วันที่สั่งซื้อ:', ''],
-        ['ชื่อผู้ขาย:', '', 'วันที่รับของ:', ''],
-        ['เบอร์โทรผู้ขาย:', ''],
+        ['For Purchasing Dept (fill when purchasing):'],
+        ['PO Number:', '', 'Order Date:', ''],
+        ['Supplier Name:', '', 'Receive Date:', ''],
+        ['Supplier Tel:', ''],
         [''],
-        ['รายการที่ซื้อได้:'],
-        ['ลำดับ', 'รหัส', 'รายการ', 'จำนวนที่ซื้อ', 'ราคาจริง/หน่วย', 'รวม']
+        ['Items to Purchase:'],
+        ['No.', 'Code/SKU', 'Item', 'Qty to Buy', 'Actual Unit Price', 'Total']
       ], { origin: -1 });
 
       ws['!cols'] = [
@@ -142,7 +151,7 @@ export function PRDetail() {
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'PR');
       XLSX.writeFile(wb, `PR-${data.pr_number}.xlsx`);
-      toast.success('Export Excel สำเร็จ');
+      toast.success('Excel export successful');
     } catch (error) {
       toast.error('Export failed');
     }
@@ -160,10 +169,10 @@ export function PRDetail() {
 
   const getStatusText = (status: string) => {
     const texts: Record<string, string> = {
-      ordered: 'สั่งซื้อแล้ว',
-      partially_received: 'รับบางส่วน',
-      fully_received: 'รับครบแล้ว',
-      cancelled: 'ยกเลิก'
+      ordered: 'Ordered',
+      partially_received: 'Partially Received',
+      fully_received: 'Fully Received',
+      cancelled: 'Cancelled'
     };
     return texts[status] || status;
   };
@@ -180,10 +189,10 @@ export function PRDetail() {
 
   const getPriorityText = (priority: string) => {
     const texts: Record<string, string> = {
-      low: 'ต่ำ',
-      normal: 'ปกติ',
-      high: 'สูง',
-      urgent: 'ด่วน'
+      low: 'Low',
+      normal: 'Normal',
+      high: 'High',
+      urgent: 'Urgent'
     };
     return texts[priority] || priority;
   };
@@ -215,10 +224,10 @@ export function PRDetail() {
       <div className="flex items-center gap-4">
         <Button variant="ghost" onClick={() => navigate('/prs')}>
           <ArrowLeft className="w-4 h-4 mr-1" />
-          กลับ
+          Back
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">รายละเอียดใบขอซื้อ</h1>
+          <h1 className="text-3xl font-bold">PR Details</h1>
           <p className="text-gray-500">{pr.pr_number}</p>
         </div>
       </div>
@@ -239,7 +248,7 @@ export function PRDetail() {
                 </Badge>
               </div>
               <div className="text-sm text-gray-500">
-                สร้างเมื่อ {new Date(pr.created_at).toLocaleDateString('th-TH')}
+                Created on {new Date(pr.created_at).toLocaleDateString('th-TH')}
               </div>
             </div>
 
@@ -251,7 +260,7 @@ export function PRDetail() {
               {canReceive(pr.status) && (
                 <Button onClick={() => navigate(`/prs/${pr.id}/receive`)}>
                   <Package className="w-4 h-4 mr-1" />
-                  รับของ
+                  Receive
                 </Button>
               )}
             </div>
@@ -264,33 +273,33 @@ export function PRDetail() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">ข้อมูลทั่วไป</CardTitle>
+              <CardTitle className="text-lg">General Information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-500">ผู้ขอ:</span>
+                <span className="text-gray-500">Requester:</span>
                 <span>{pr.requester_name}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Building className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-500">แผนก:</span>
+                <span className="text-gray-500">Department:</span>
                 <span>{pr.department_name}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Store className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-500">คลัง:</span>
+                <span className="text-gray-500">Store:</span>
                 <span>{pr.store_name}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-500">วันที่ต้องการ:</span>
+                <span className="text-gray-500">Required Date:</span>
                 <span>{new Date(pr.required_date).toLocaleDateString('th-TH')}</span>
               </div>
 
               {pr.notes && (
                 <div className="pt-2 border-t">
-                  <span className="text-gray-500">หมายเหตุ:</span>
+                  <span className="text-gray-500">Notes:</span>
                   <p className="mt-1">{pr.notes}</p>
                 </div>
               )}
@@ -303,25 +312,25 @@ export function PRDetail() {
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Package className="w-5 h-5" />
-                  ข้อมูลการรับของ
+                  Receiving Information
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {pr.po_number && (
                   <div>
-                    <span className="text-gray-500">เลข PO จากผู้ขาย:</span>
+                    <span className="text-gray-500">Supplier PO Number:</span>
                     <p className="font-mono text-lg">{pr.po_number}</p>
                   </div>
                 )}
                 {pr.supplier_name && (
                   <div>
-                    <span className="text-gray-500">ผู้ขาย:</span>
+                    <span className="text-gray-500">Supplier:</span>
                     <p>{pr.supplier_name}</p>
                   </div>
                 )}
                 {pr.received_at && (
                   <div>
-                    <span className="text-gray-500">รับของเมื่อ:</span>
+                    <span className="text-gray-500">Received on:</span>
                     <p>{new Date(pr.received_at).toLocaleDateString('th-TH')}</p>
                   </div>
                 )}
@@ -334,7 +343,7 @@ export function PRDetail() {
         <div>
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">รายการสินค้า ({pr.items?.length || 0})</CardTitle>
+              <CardTitle className="text-lg">Items ({pr.items?.length || 0})</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -342,9 +351,9 @@ export function PRDetail() {
                   <div key={item.id} className="border rounded-lg p-4">
                     <div className="flex justify-between items-start">
                       <div>
-                        <div className="font-medium">{item.name}</div>
+                        <div className="font-medium">{getItemName(item)}</div>
                         <div className="text-sm text-gray-500">
-                          SKU: {item.sku} | {item.unit}
+                          SKU: {getItemSku(item)} | {item.unit}
                         </div>
                       </div>
                       <div className="text-right">
@@ -355,22 +364,22 @@ export function PRDetail() {
                     </div>
                     <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
                       <div>
-                        <span className="text-gray-500">ราคาประมาณ:</span>
+                        <span className="text-gray-500">Est. Price:</span>
                         <p>฿{item.estimated_unit_cost?.toLocaleString()}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">ราคาจริง:</span>
+                        <span className="text-gray-500">Actual Price:</span>
                         <p>฿{item.actual_unit_cost?.toLocaleString() || '-'}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">รวม:</span>
+                        <span className="text-gray-500">Total:</span>
                         <p className="font-medium">
                           ฿{((item.received_quantity || item.quantity) * (item.actual_unit_cost || item.estimated_unit_cost)).toLocaleString()}
                         </p>
                       </div>
                     </div>
                     {item.notes && (
-                      <p className="text-sm text-gray-500 mt-2">หมายเหตุ: {item.notes}</p>
+                      <p className="text-sm text-gray-500 mt-2">Notes: {item.notes}</p>
                     )}
                   </div>
                 ))}
@@ -378,12 +387,12 @@ export function PRDetail() {
                 {/* Totals */}
                 <div className="border-t pt-4 space-y-2">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">รวมมูลค่าประมาณ:</span>
+                    <span className="text-gray-500">Total Estimated:</span>
                     <span>฿{totalEstimated.toLocaleString()}</span>
                   </div>
                   {(pr.status === 'partially_received' || pr.status === 'fully_received') && (
                     <div className="flex justify-between">
-                      <span className="text-gray-500">รวมมูลค่าจริง:</span>
+                      <span className="text-gray-500">Total Actual:</span>
                       <span className="font-bold text-green-600">฿{totalActual.toLocaleString()}</span>
                     </div>
                   )}

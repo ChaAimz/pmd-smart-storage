@@ -1,5 +1,22 @@
 version: '3.8'
 
+# IMPORTANT: This stack requires pre-built images:
+#   - smart-storage-backend:latest
+#   - smart-storage-frontend:latest
+#
+# Option 1: Build locally and push to registry
+#   docker build -t your-registry/smart-storage-backend:latest ./backend/server
+#   docker build -t your-registry/smart-storage-frontend:latest ./frontend
+#   docker push your-registry/smart-storage-backend:latest
+#   docker push your-registry/smart-storage-frontend:latest
+#
+# Option 2: Save/Load images
+#   docker save smart-storage-backend:latest smart-storage-frontend:latest | gzip > smart-storage-images.tar.gz
+#   # Copy to Portainer host and load:
+#   gunzip -c smart-storage-images.tar.gz | docker load
+#
+# Option 3: Use docker-compose.portainer-build.yml (builds from source)
+
 services:
   # Mosquitto MQTT Broker
   mosquitto:
@@ -10,7 +27,7 @@ services:
       - "1883:1883"
       - "9001:9001"
     volumes:
-      - /portainer/Files/AppData/Config/smart-storage/mosquitto:/mosquitto/config:ro
+      - mosquitto-config:/mosquitto/config
       - mosquitto-data:/mosquitto/data
       - mosquitto-logs:/mosquitto/log
     networks:
@@ -21,9 +38,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 5s
-    labels:
-      - "io.portainer.kubernetes.templates=true"
-      - "io.portainer.kubernetes.templates.name=Smart Storage MQTT"
 
   # Backend API Server
   backend:
@@ -39,6 +53,7 @@ services:
       - MQTT_BROKER_URL=mqtt://mosquitto:1883
       - DATABASE_PATH=./data/warehouse.db
       - API_PREFIX=/api
+      - JWT_SECRET=${JWT_SECRET:-smart-storage-secret-key-change-in-production}
     volumes:
       - backend-data:/app/data
     networks:
@@ -52,9 +67,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    labels:
-      - "io.portainer.kubernetes.templates=true"
-      - "io.portainer.kubernetes.templates.name=Smart Storage Backend"
 
   # Frontend Web Dashboard
   frontend:
@@ -77,12 +89,11 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
-    labels:
-      - "io.portainer.kubernetes.templates=true"
-      - "io.portainer.kubernetes.templates.name=Smart Storage Frontend"
 
 # Volumes for data persistence
 volumes:
+  mosquitto-config:
+    driver: local
   mosquitto-data:
     driver: local
   mosquitto-logs:

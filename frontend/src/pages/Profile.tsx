@@ -23,7 +23,19 @@ export default function Profile() {
     email: user?.email || '',
   })
 
-  if (!user) return null
+  if (!user) {
+    return (
+      <div className="container mx-auto p-6 max-w-4xl">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Please log in to view your profile</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   const handleSave = () => {
     toast.success('Profile updated successfully')
@@ -67,7 +79,7 @@ export default function Profile() {
               <Avatar className="h-24 w-24 border-4 border-background shadow-lg">
                 <AvatarImage src={user.avatarUrl} alt={user.fullName} />
                 <AvatarFallback className="text-2xl">
-                  {user.fullName.split(' ').map(n => n[0]).join('')}
+                  {user.fullName?.split(' ').map(n => n[0]).join('') || user.username?.[0]?.toUpperCase() || '?'}
                 </AvatarFallback>
               </Avatar>
               

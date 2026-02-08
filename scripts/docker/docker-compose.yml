@@ -38,6 +38,7 @@ services:
       - MQTT_BROKER_URL=mqtt://mosquitto:1883
       - DATABASE_PATH=./data/warehouse.db
       - API_PREFIX=/api
+      - JWT_SECRET=smart-storage-secret-key-change-in-production
     volumes:
       - backend-data:/app/data
     networks:

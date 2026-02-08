@@ -65,22 +65,22 @@ export function PRList() {
       
       // Create worksheet
       const ws = XLSX.utils.json_to_sheet([
-        ['เอกสารขอซื้อ (Purchase Requisition)'],
+        ['Purchase Requisition'],
         [''],
-        ['เลขที่ PR:', data.pr_number],
-        ['วันที่:', new Date(data.pr_date).toLocaleDateString('th-TH')],
-        ['วันที่ต้องการ:', new Date(data.required_date).toLocaleDateString('th-TH')],
+        ['PR Number:', data.pr_number],
+        ['Date:', new Date(data.pr_date).toLocaleDateString('th-TH')],
+        ['Required Date:', new Date(data.required_date).toLocaleDateString('th-TH')],
         ['ความสำคัญ:', data.priority],
-        ['ผู้ขอ:', data.requester_name],
-        ['แผนก:', data.department_name],
-        ['คลัง:', data.store_name],
-        ['หมายเหตุ:', data.notes || '-'],
+        ['Requester:', data.requester_name],
+        ['Department:', data.department_name],
+        ['Store:', data.store_name],
+        ['Notes:', data.notes || '-'],
         [''],
-        ['รายการที่ขอ:']
+        ['Requested Items:']
       ]);
 
       // Add items
-      const itemsHeader = ['ลำดับ', 'รหัส', 'รายการ', 'หน่วย', 'จำนวน', 'ราคาประมาณ/หน่วย', 'รวม'];
+      const itemsHeader = ['No.', 'Code/SKU', 'Item', 'Unit', 'Quantity', 'Est. Unit Price', 'Total'];
       const itemsData = data.items.map((item: any, idx: number) => [
         idx + 1,
         item.sku,
@@ -98,16 +98,16 @@ export function PRList() {
       // Add summary
       XLSX.utils.sheet_add_aoa(ws, [
         [],
-        ['รวมมูลค่า:', '', '', '', '', '', data.total_amount],
+        ['Total Amount:', '', '', '', '', '', data.total_amount],
         [],
         ['==============================================='],
-        ['สำหรับฝ่ายจัดซื้อ (กรอกข้อมูลตอนซื้อ):'],
-        ['เลข PO:', '', 'วันที่สั่งซื้อ:', ''],
-        ['ชื่อผู้ขาย:', '', 'วันที่รับของ:', ''],
-        ['เบอร์โทรผู้ขาย:', ''],
+        ['For Purchasing Dept (fill when purchasing):'],
+        ['PO Number:', '', 'Order Date:', ''],
+        ['Supplier Name:', '', 'Receive Date:', ''],
+        ['Supplier Tel:', ''],
         [''],
-        ['รายการที่ซื้อได้:'],
-        ['ลำดับ', 'รหัส', 'รายการ', 'จำนวนที่ซื้อ', 'ราคาจริง/หน่วย', 'รวม']
+        ['Items to Purchase:'],
+        ['No.', 'Code/SKU', 'Item', 'Qty to Buy', 'Actual Unit Price', 'Total']
       ], { origin: -1 });
 
       // Set column widths
@@ -127,8 +127,8 @@ export function PRList() {
 
       // Download
       XLSX.writeFile(wb, `PR-${data.pr_number}.xlsx`);
-      toast.success('Export Excel สำเร็จ', {
-        description: 'ส่งไฟล์ให้ฝ่ายจัดซื้อได้เลย'
+      toast.success('Excel export successful', {
+        description: 'Send file to Purchasing now'
       });
     } catch (error) {
       toast.error('Export failed');
@@ -151,10 +151,10 @@ export function PRList() {
 
   const getStatusText = (status: string) => {
     const texts: Record<string, string> = {
-      ordered: 'สั่งซื้อแล้ว',
-      partially_received: 'รับบางส่วน',
-      fully_received: 'รับครบแล้ว',
-      cancelled: 'ยกเลิก'
+      ordered: 'Ordered',
+      partially_received: 'Partially Received',
+      fully_received: 'Fully Received',
+      cancelled: 'Cancelled'
     };
     return texts[status] || status;
   };
@@ -163,12 +163,12 @@ export function PRList() {
     switch (pr.status) {
       case 'ordered':
       case 'partially_received':
-        return { text: 'รับของได้', canReceive: true };
+        return { text: 'Ready to Receive', canReceive: true };
       case 'fully_received':
       case 'cancelled':
-        return { text: 'รับครบแล้ว', canReceive: false };
+        return { text: 'Fully Received', canReceive: false };
       default:
-        return { text: 'รับของได้', canReceive: true };
+        return { text: 'Ready to Receive', canReceive: true };
     }
   };
 
@@ -176,22 +176,22 @@ export function PRList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">ใบขอซื้อ (PR)</h1>
-          <p className="text-gray-500 mt-1">สร้าง PR → Export Excel → ส่งจัดซื้อ → Key รับของ</p>
+          <h1 className="text-3xl font-bold">Purchase Requisition (PR)</h1>
+          <p className="text-gray-500 mt-1">Create PR → Export Excel → Send to Purchasing → Receive Items</p>
         </div>
         <Button onClick={() => navigate('/prs/create')}>
           <Plus className="w-4 h-4 mr-2" />
-          สร้าง PR
+          Create PR
         </Button>
       </div>
 
       {/* Filters */}
       <div className="flex gap-2 flex-wrap">
         {[
-          { key: 'all', label: 'ทั้งหมด' },
-          { key: 'ordered', label: 'สั่งซื้อแล้ว' },
-          { key: 'partially_received', label: 'รับบางส่วน' },
-          { key: 'fully_received', label: 'รับครบ' }
+          { key: 'all', label: 'All' },
+          { key: 'ordered', label: 'Ordered' },
+          { key: 'partially_received', label: 'Partially Received' },
+          { key: 'fully_received', label: 'Fully Received' }
         ].map((f) => (
           <Button
             key={f.key}
@@ -212,7 +212,7 @@ export function PRList() {
           </div>
         ) : prs.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
-            ไม่มีรายการ PR
+            No PR records
           </div>
         ) : (
           prs.map((pr) => {
@@ -229,20 +229,20 @@ export function PRList() {
                           {getStatusText(pr.status)}
                         </Badge>
                         {pr.priority === 'urgent' && (
-                          <Badge className="bg-red-100 text-red-800">ด่วน</Badge>
+                          <Badge className="bg-red-100 text-red-800">Urgent</Badge>
                         )}
                       </div>
                       
                       <div className="text-sm text-gray-500">
-                        ขอโดย: {pr.requester_name} | 
-                        {pr.item_count} รายการ | 
-                        มูลค่า: ฿{pr.estimated_total?.toLocaleString()}
+                        Requested by: {pr.requester_name} | 
+                        {pr.item_count} items | 
+                        Amount: ฿{pr.estimated_total?.toLocaleString()}
                       </div>
                       
                       <div className="flex items-center gap-4 text-sm">
                         <span className="flex items-center gap-1">
                           <Calendar className="w-4 h-4" />
-                          ต้องการ: {new Date(pr.required_date).toLocaleDateString('th-TH')}
+                          Required: {new Date(pr.required_date).toLocaleDateString('th-TH')}
                         </span>
                       </div>
 
@@ -272,7 +272,7 @@ export function PRList() {
                           onClick={() => handleReceive(pr.id)}
                         >
                           <Package className="w-4 h-4 mr-1" />
-                          รับของ
+                          Receive
                         </Button>
                       )}
 
@@ -282,7 +282,7 @@ export function PRList() {
                         size="sm"
                         onClick={() => navigate(`/prs/${pr.id}`)}
                       >
-                        ดู
+                        View
                       </Button>
                     </div>
                   </div>

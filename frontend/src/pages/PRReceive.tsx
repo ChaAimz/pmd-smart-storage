@@ -2,6 +2,15 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as api from '@/services/api';
+
+// Helper functions to handle both old and new API response formats
+const getItemName = (item: any): string => {
+  return item?.name || item?.master_name || item?.local_name || 'Unknown'
+}
+
+const getItemSku = (item: any): string => {
+  return item?.sku || item?.master_sku || item?.local_sku || 'N/A'
+}
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -57,7 +66,7 @@ export function PRReceive() {
   const [submitting, setSubmitting] = useState(false);
   const [pr, setPr] = useState<PR | null>(null);
   
-  // Supplier document info (กรอกจากเอกสารที่ได้รับ)
+  // Supplier document info (fill from received document)
   const [poNumber, setPoNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [supplierName, setSupplierName] = useState('');
@@ -104,19 +113,19 @@ export function PRReceive() {
 
   const validate = () => {
     if (!poNumber.trim()) {
-      toast.error('กรุณาระบุเลข PO จากผู้ขาย (จากเอกสารที่แนบมากับสินค้า)');
+      toast.error('Please enter supplier PO number');
       return false;
     }
     if (!supplierName.trim()) {
-      toast.error('กรุณาระบุชื่อผู้ขาย');
+      toast.error('Please enter supplier name');
       return false;
     }
     if (!receivedDate) {
-      toast.error('กรุณาระบุวันที่รับของ');
+      toast.error('Please enter receive date');
       return false;
     }
     if (receiveItems.some(item => item.received_quantity <= 0)) {
-      toast.error('กรุณาระบุจำนวนที่รับให้ถูกต้อง');
+      toast.error('Please enter valid receive quantity');
       return false;
     }
     return true;
@@ -136,8 +145,8 @@ export function PRReceive() {
       });
 
       if (response.success) {
-        toast.success('บันทึกการรับของสำเร็จ', {
-          description: `รับของเข้าระบบแล้ว ${response.data.received_count} รายการ`
+        toast.success('Receipt saved successfully', {
+          description: `${response.data.received_count} items received into system`
         });
         navigate('/prs');
       }
@@ -176,11 +185,11 @@ export function PRReceive() {
       <div className="flex items-center gap-4">
         <Button variant="ghost" onClick={() => navigate('/prs')}>
           <ArrowLeft className="w-4 h-4 mr-1" />
-          กลับ
+          Back
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">รับของเข้าคลัง</h1>
-          <p className="text-gray-500">กรอกข้อมูลจากเอกสาร PO/ใบส่งสินค้าที่ได้รับ</p>
+          <h1 className="text-3xl font-bold">Receive Items to Warehouse</h1>
+          <p className="text-gray-500">Enter info from PO/Delivery document</p>
         </div>
       </div>
 
@@ -196,7 +205,7 @@ export function PRReceive() {
               </div>
             </div>
             <Badge className="bg-blue-100 text-blue-800">
-              {pr.status === 'ordered' ? 'สั่งซื้อแล้ว' : 'รับบางส่วน'}
+              {pr.status === 'ordered' ? 'Ordered' : 'Partially Received'}
             </Badge>
           </div>
         </CardContent>
@@ -209,28 +218,28 @@ export function PRReceive() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Truck className="w-5 h-5" />
-                ข้อมูลจากผู้ขาย (กรอกจากเอกสาร)
+                Supplier Info (from document)
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
                 <Label className="flex items-center gap-2 text-red-600">
                   <AlertCircle className="w-4 h-4" />
-                  เลข PO จากผู้ขาย *
+                  Supplier PO Number *
                 </Label>
                 <Input
-                  placeholder="ตัวอย่าง: PO-2024-00123"
+                  placeholder="Example: PO-2024-00123"
                   value={poNumber}
                   onChange={(e) => setPoNumber(e.target.value)}
                   required
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  ดูจากใบส่งสินค้าหรือใบกำกับภาษีจากผู้ขาย
+                  From delivery note or tax invoice
                 </p>
               </div>
 
               <div>
-                <Label>เลข Invoice/ใบกำกับภาษี</Label>
+                <Label>Invoice/Tax Invoice Number</Label>
                 <Input
                   placeholder="INV-2024-XXXX"
                   value={invoiceNumber}
@@ -239,9 +248,9 @@ export function PRReceive() {
               </div>
 
               <div>
-                <Label className="text-red-600">ชื่อผู้ขาย (Supplier) *</Label>
+                <Label className="text-red-600">Supplier Name *</Label>
                 <Input
-                  placeholder="ชื่อบริษัทหรือร้านค้า"
+                  placeholder="Company or shop name"
                   value={supplierName}
                   onChange={(e) => setSupplierName(e.target.value)}
                   required
@@ -249,7 +258,7 @@ export function PRReceive() {
               </div>
 
               <div>
-                <Label className="text-red-600">วันที่รับของ *</Label>
+                <Label className="text-red-600">Receive Date *</Label>
                 <Input
                   type="date"
                   value={receivedDate}
@@ -259,11 +268,11 @@ export function PRReceive() {
               </div>
 
               <div className="bg-yellow-50 p-3 rounded text-sm">
-                <strong className="text-yellow-800">คำอธิบาย:</strong>
+                <strong className="text-yellow-800">Note:</strong>
                 <ul className="list-disc list-inside mt-1 text-yellow-700 space-y-1">
-                  <li>PO ที่กรอกคือเลขจากผู้ขาย (Supplier)</li>
-                  <li>หมายเลขนี้จะถูกบันทึกไว้เพื่ออ้างอิงในอนาคต</li>
-                  <li>ระบบจะสร้าง Lot Number อัตโนมัติสำหรับ FIFO</li>
+                  <li>PO number is from supplier</li>
+                  <li>This number will be saved for future reference</li>
+                  <li>System will auto-generate Lot Number for FIFO</li>
                 </ul>
               </div>
             </CardContent>
@@ -276,13 +285,13 @@ export function PRReceive() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Package className="w-5 h-5" />
-                รายการที่รับ ({remainingItems.length})
+                Items to Receive ({remainingItems.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {remainingItems.length === 0 ? (
                 <div className="text-center py-4 text-gray-500">
-                  รับครบทุกรายการแล้ว
+                  All items received
                 </div>
               ) : (
                 remainingItems.map((item, idx) => {
@@ -293,21 +302,21 @@ export function PRReceive() {
                     <div key={item.id} className="border rounded-lg p-4 space-y-3">
                       <div className="flex justify-between items-start">
                         <div>
-                          <div className="font-medium">{item.name}</div>
+                          <div className="font-medium">{getItemName(item)}</div>
                           <div className="text-sm text-gray-500">
-                            SKU: {item.sku} | {item.unit}
+                            SKU: {getItemSku(item)} | {item.unit}
                           </div>
                         </div>
                         <Badge variant="outline">
-                          ขอ: {item.requested_quantity} | 
-                          รับแล้ว: {item.received_quantity} | 
-                          คงเหลือ: {remaining}
+                          Requested: {item.requested_quantity} | 
+                          Received: {item.received_quantity} | 
+                          Remaining: {remaining}
                         </Badge>
                       </div>
 
                       <div className="grid grid-cols-2 gap-4">
                         <div>
-                          <Label className="text-xs">จำนวนที่รับจริง *</Label>
+                          <Label className="text-xs">Actual Qty Received *</Label>
                           <Input
                             type="number"
                             min={1}
@@ -321,7 +330,7 @@ export function PRReceive() {
                           />
                         </div>
                         <div>
-                          <Label className="text-xs">ราคาต่อหน่วย (บาท) *</Label>
+                          <Label className="text-xs">Unit Price (THB) *</Label>
                           <Input
                             type="number"
                             step="0.01"
@@ -337,16 +346,16 @@ export function PRReceive() {
                       </div>
 
                       <div>
-                        <Label className="text-xs">หมายเลข Batch/Lot (ถ้ามี)</Label>
+                        <Label className="text-xs">Batch/Lot Number (if any)</Label>
                         <Input
-                          placeholder="เลข Lot จากผู้ขาย"
+                          placeholder="Supplier Lot Number"
                           value={receiveItem?.batch_number || ''}
                           onChange={(e) => updateReceiveItem(item.id, 'batch_number', e.target.value)}
                         />
                       </div>
 
                       <div>
-                        <Label className="text-xs">วันหมดอายุ (ถ้ามี)</Label>
+                        <Label className="text-xs">Expiry Date (if any)</Label>
                         <Input
                           type="date"
                           value={receiveItem?.expiry_date || ''}
@@ -367,11 +376,11 @@ export function PRReceive() {
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <div className="text-gray-500">จำนวนรายการที่จะรับ</div>
-              <div className="text-xl font-bold">{receiveItems.length} รายการ / {totalQuantity} ชิ้น</div>
+              <div className="text-gray-500">Items to receive</div>
+              <div className="text-xl font-bold">{receiveItems.length} items / {totalQuantity} pieces</div>
             </div>
             <div className="text-right space-y-1">
-              <div className="text-gray-500">มูลค่ารวม</div>
+              <div className="text-gray-500">Total Amount</div>
               <div className="text-xl font-bold text-green-600">
                 ฿{totalCost.toLocaleString()}
               </div>
@@ -384,7 +393,7 @@ export function PRReceive() {
               onClick={() => navigate('/prs')}
               disabled={submitting}
             >
-              ยกเลิก
+              Cancel
             </Button>
             <Button 
               size="lg"
@@ -392,11 +401,11 @@ export function PRReceive() {
               disabled={submitting || remainingItems.length === 0}
             >
               {submitting ? (
-                'กำลังบันทึก...'
+                'Saving...'
               ) : (
                 <>
                   <CheckCircle className="w-5 h-5 mr-2" />
-                  ยืนยันการรับของ
+                  Confirm Receipt
                 </>
               )}
             </Button>

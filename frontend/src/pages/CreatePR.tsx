@@ -42,7 +42,7 @@ export function CreatePR() {
   const [searchResults, setSearchResults] = useState<MasterItem[]>([]);
   const [selectedItems, setSelectedItems] = useState<PRItem[]>([]);
   
-  // PR Info - ไม่ต้องใส่ supplier ตอนสร้าง
+  // PR Info - no need to add supplier when creating
   const [priority, setPriority] = useState('normal');
   const [requiredDate, setRequiredDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -82,7 +82,7 @@ export function CreatePR() {
 
   const addItem = (item: MasterItem) => {
     if (selectedItems.find(i => i.master_item_id === item.id)) {
-      toast.warning('รายการนี้อยู่ในรายการแล้ว');
+      toast.warning('This item is already in the list');
       return;
     }
 
@@ -118,12 +118,12 @@ export function CreatePR() {
 
   const handleSubmit = async () => {
     if (selectedItems.length === 0) {
-      toast.error('กรุณาเพิ่มอย่างน้อย 1 รายการ');
+      toast.error('Please add at least 1 item');
       return;
     }
 
     if (!requiredDate) {
-      toast.error('กรุณาระบุวันที่ต้องการ');
+      toast.error('Please enter required date');
       return;
     }
 
@@ -143,14 +143,14 @@ export function CreatePR() {
       });
 
       if (response.success) {
-        toast.success('สร้าง PR สำเร็จ', {
-          description: `เลขที่: ${response.data.pr_number}`
+        toast.success('PR created successfully', {
+          description: `Number: ${response.data.pr_number}`
         });
         
         // Export Excel อัตโนมัติเพื่อส่งให้จัดซื้อ
         await exportToExcel(response.data.id);
         
-        toast.info('Export Excel สำเร็จ กรุณาส่งไฟล์ให้ฝ่ายจัดซื้อ');
+        toast.info('Excel export successful, please send to Purchasing');
         
         navigate('/prs');
       }
@@ -175,21 +175,21 @@ export function CreatePR() {
       
       // Create worksheet
       const ws = XLSX.utils.json_to_sheet([
-        ['เอกสารขอซื้อ (Purchase Requisition)'],
+        ['Purchase Requisition'],
         [''],
-        ['เลขที่ PR:', data.pr_number],
-        ['วันที่:', data.pr_date],
-        ['วันที่ต้องการ:', data.required_date],
+        ['PR Number:', data.pr_number],
+        ['Date:', data.pr_date],
+        ['Required Date:', data.required_date],
         ['ความสำคัญ:', data.priority],
-        ['ผู้ขอ:', data.requester],
-        ['แผนก:', data.department],
-        ['คลัง:', data.store],
+        ['Requester:', data.requester],
+        ['Department:', data.department],
+        ['Store:', data.store],
         [''],
-        ['รายการที่ขอ:']
+        ['Requested Items:']
       ]);
 
       // Add items
-      const itemsHeader = ['ลำดับ', 'รหัส', 'รายการ', 'หน่วย', 'จำนวน', 'ราคาประมาณ/หน่วย', 'รวม', 'หมายเหตุ'];
+      const itemsHeader = ['No.', 'Code/SKU', 'Item', 'Unit', 'Quantity', 'Est. Unit Price', 'Total', 'Notes'];
       const itemsData = data.items.map((item: any, idx: number) => [
         idx + 1,
         item.sku,
@@ -208,28 +208,28 @@ export function CreatePR() {
       // Add summary
       XLSX.utils.sheet_add_aoa(ws, [
         [],
-        ['รวมมูลค่า:', '', '', '', '', '', data.total_estimated_amount],
+        ['Total Amount:', '', '', '', '', '', data.total_estimated_amount],
         [],
         ['==============================================='],
-        ['สำหรับฝ่ายจัดซื้อ (กรอกข้อมูลตอนซื้อ):'],
-        ['เลข PO:', ''],
-        ['ชื่อผู้ขาย:', ''],
-        ['วันที่สั่งซื้อ:', ''],
-        ['วันที่รับของ:', ''],
+        ['For Purchasing Dept (fill when purchasing):'],
+        ['PO Number:', ''],
+        ['Supplier Name:', ''],
+        ['Order Date:', ''],
+        ['Receive Date:', ''],
         [],
-        ['หมายเหตุ:', data.notes]
+        ['Notes:', data.notes]
       ], { origin: -1 });
 
       // Set column widths
       ws['!cols'] = [
-        { wch: 8 },   // ลำดับ
-        { wch: 15 },  // รหัส
-        { wch: 30 },  // รายการ
-        { wch: 10 },  // หน่วย
-        { wch: 10 },  // จำนวน
-        { wch: 15 },  // ราคา
-        { wch: 15 },  // รวม
-        { wch: 20 }   // หมายเหตุ
+        { wch: 8 },   // No.
+        { wch: 15 },  // Code/SKU
+        { wch: 30 },  // Item
+        { wch: 10 },  // Unit
+        { wch: 10 },  // Quantity
+        { wch: 15 },  // Price
+        { wch: 15 },  // Total
+        { wch: 20 }   // Notes
       ];
 
       // Create workbook
@@ -246,8 +246,8 @@ export function CreatePR() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">สร้างใบขอซื้อ (PR)</h1>
-      <p className="text-gray-500">สร้างใบขอซื้อภายใน จากนั้น Export Excel ส่งให้ฝ่ายจัดซื้อ</p>
+      <h1 className="text-3xl font-bold">Create Purchase Requisition (PR)</h1>
+      <p className="text-gray-500">Create internal PR, then Export Excel to send to Purchasing</p>
 
       <div className="grid grid-cols-3 gap-6">
         {/* Left: Search & Add Items */}
@@ -257,13 +257,13 @@ export function CreatePR() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Search className="w-5 h-5" />
-                ค้นหารายการสินค้า
+                Search items
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="relative" ref={searchRef}>
                 <Input
-                  placeholder="พิมพ์ชื่อหรือ SKU..."
+                  placeholder="Type name or SKU..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -278,7 +278,7 @@ export function CreatePR() {
                       >
                         <div className="font-medium">{item.name}</div>
                         <div className="text-sm text-gray-500">
-                          SKU: {item.sku} | หน่วย: {item.unit}
+                          SKU: {item.sku} | Unit: {item.unit}
                         </div>
                       </div>
                     ))}
@@ -294,14 +294,14 @@ export function CreatePR() {
               <CardTitle className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
                   <Package className="w-5 h-5" />
-                  รายการที่ขอซื้อ ({selectedItems.length})
+                  Items to purchase ({selectedItems.length})
                 </span>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               {selectedItems.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  ยังไม่มีรายการ กรุณาค้นหาและเพิ่มรายการ
+                  No items yet, please search and add
                 </div>
               ) : (
                 selectedItems.map((item, index) => (
@@ -322,7 +322,7 @@ export function CreatePR() {
                     
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <Label className="text-xs">จำนวน</Label>
+                        <Label className="text-xs">Quantity</Label>
                         <Input
                           type="number"
                           min={1}
@@ -331,7 +331,7 @@ export function CreatePR() {
                         />
                       </div>
                       <div>
-                        <Label className="text-xs">ราคาประมาณ/หน่วย</Label>
+                        <Label className="text-xs">Est. Unit Price</Label>
                         <Input
                           type="number"
                           min={0}
@@ -341,16 +341,16 @@ export function CreatePR() {
                         />
                       </div>
                       <div>
-                        <Label className="text-xs">รวม</Label>
+                        <Label className="text-xs">Total</Label>
                         <div className="pt-2 font-medium">
                           ฿{(item.quantity * item.estimated_unit_cost).toLocaleString()}
                         </div>
                       </div>
                     </div>
                     <div>
-                      <Label className="text-xs">หมายเหตุ</Label>
+                      <Label className="text-xs">Notes</Label>
                       <Input
-                        placeholder="หมายเหตุรายการ"
+                        placeholder="Item notes"
                         value={item.notes}
                         onChange={(e) => updateItem(index, 'notes', e.target.value)}
                       />
@@ -368,12 +368,12 @@ export function CreatePR() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="w-5 h-5" />
-                ข้อมูลใบขอซื้อ
+                PR Information
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label>ความเร่งด่วน</Label>
+                <Label>Priority</Label>
                 <div className="flex gap-2 mt-1 flex-wrap">
                   {['low', 'normal', 'high', 'urgent'].map((p) => (
                     <Badge
@@ -382,10 +382,10 @@ export function CreatePR() {
                       className="cursor-pointer"
                       onClick={() => setPriority(p)}
                     >
-                      {p === 'low' && 'ต่ำ'}
-                      {p === 'normal' && 'ปกติ'}
-                      {p === 'high' && 'สูง'}
-                      {p === 'urgent' && 'ด่วน'}
+                      {p === 'low' && 'Low'}
+                      {p === 'normal' && 'Normal'}
+                      {p === 'high' && 'High'}
+                      {p === 'urgent' && 'Urgent'}
                     </Badge>
                   ))}
                 </div>
@@ -394,7 +394,7 @@ export function CreatePR() {
               <div>
                 <Label className="flex items-center gap-2">
                   <Calendar className="w-4 h-4" />
-                  วันที่ต้องการของ
+                  Required Date
                 </Label>
                 <Input
                   type="date"
@@ -409,17 +409,17 @@ export function CreatePR() {
                 <Textarea
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="ระบุเหตุผลการขอซื้อ หรือรายละเอียดเพิ่มเติม..."
+                  placeholder="Enter reason for purchase or additional details..."
                   rows={4}
                 />
               </div>
 
               <div className="bg-blue-50 p-3 rounded text-sm text-blue-700">
-                <strong>ขั้นตอนต่อไป:</strong><br/>
-                1. บันทึก PR<br/>
-                2. Export Excel ส่งจัดซื้อ<br/>
-                3. รอจัดซื้อซื้อของ<br/>
-                4. Key รับของเมื่อของมาส่ง
+                <strong>Next Steps:</strong><br/>
+                1. Save PR<br/>
+                2. Export Excel to Purchasing<br/>
+                3. Wait for purchasing<br/>
+                4. Receive items when delivered
               </div>
             </CardContent>
           </Card>
@@ -428,11 +428,11 @@ export function CreatePR() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex justify-between items-center mb-4">
-                <span className="text-gray-500">จำนวนรายการ</span>
-                <span className="font-medium">{selectedItems.length} รายการ</span>
+                <span className="text-gray-500">Number of Items</span>
+                <span className="font-medium">{selectedItems.length} items</span>
               </div>
               <div className="flex justify-between items-center mb-4">
-                <span className="text-gray-500">มูลค่ารวมประมาณ</span>
+                <span className="text-gray-500">Total Estimated Amount</span>
                 <span className="text-xl font-bold">
                   ฿{calculateTotal().toLocaleString()}
                 </span>
@@ -444,7 +444,7 @@ export function CreatePR() {
                 onClick={handleSubmit}
                 disabled={loading || selectedItems.length === 0}
               >
-                {loading ? 'กำลังบันทึก...' : 'บันทึกใบขอซื้อ'}
+                {loading ? 'Saving...' : 'Save PR'}
               </Button>
             </CardContent>
           </Card>

@@ -23,8 +23,25 @@ echo "Stopping existing containers..."
 docker stop smart-storage-mosquitto smart-storage-backend smart-storage-frontend 2>/dev/null || true
 docker rm smart-storage-mosquitto smart-storage-backend smart-storage-frontend 2>/dev/null || true
 
-# Create volumes directories
-mkdir -p mosquitto/data mosquitto/log
+# Create volumes directories and mosquitto config
+mkdir -p mosquitto/config mosquitto/data mosquitto/log
+
+# Create default mosquitto config if not exists
+if [ ! -f mosquitto/config/mosquitto.conf ]; then
+cat > mosquitto/config/mosquitto.conf << 'EOF'
+persistence true
+persistence_location /mosquitto/data/
+log_dest file /mosquitto/log/mosquitto.log
+
+# Default listener
+listener 1883
+allow_anonymous true
+
+# WebSocket listener
+listener 9001
+protocol websockets
+EOF
+fi
 
 # Start Mosquitto MQTT Broker
 echo "Starting Mosquitto MQTT Broker..."
@@ -33,7 +50,7 @@ docker run -d \
     --network smart-storage-network \
     -p 1883:1883 \
     -p 9001:9001 \
-    -v "$(pwd)/mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+    -v "$(pwd)/mosquitto/config:/mosquitto/config" \
     -v mosquitto-data:/mosquitto/data \
     -v mosquitto-logs:/mosquitto/log \
     eclipse-mosquitto:2

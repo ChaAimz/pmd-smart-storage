@@ -33,8 +33,11 @@ scripts/
 | Script | Description |
 |--------|-------------|
 | [run-docker.sh](docker/run-docker.sh) | Run Docker containers locally |
-| [docker-compose.yml](docker/docker-compose.yml) | Docker Compose configuration |
-| [docker-compose.portainer.yml](docker/docker-compose.portainer.yml) | Portainer stack configuration |
+| [export-images.sh](docker/export-images.sh) | Export images for Portainer |
+| [docker-compose.yml](docker/docker-compose.yml) | Docker Compose (local build) |
+| [docker-compose.portainer.yml](docker/docker-compose.portainer.yml) | Portainer (pre-built images) |
+| [docker-compose.portainer-build.yml](docker/docker-compose.portainer-build.yml) | Portainer (build from source) |
+| [README.md](docker/README.md) | Docker deployment guide |
 
 ## 🔄 Reset Scripts
 

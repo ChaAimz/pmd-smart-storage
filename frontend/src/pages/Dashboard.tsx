@@ -1,5 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+
+// Helper functions to handle both old and new API response formats
+const getItemName = (item: any): string => {
+  return item?.name || item?.master_name || item?.local_name || 'Unknown'
+}
+
+const getItemSku = (item: any): string => {
+  return item?.sku || item?.master_sku || item?.local_sku || 'N/A'
+}
+
+const getItemCategory = (item: any): string => {
+  return item?.category || item?.master_category || 'Uncategorized'
+}
 import {
   Package,
   AlertTriangle,
@@ -139,7 +152,7 @@ export function Dashboard() {
 
   // Category distribution with price
   const categoryData = items.reduce((acc, item) => {
-    const category = item.category || 'Uncategorized'
+    const category = getItemCategory(item)
     const existing = acc.find(c => c.name === category)
     const itemValue = item.quantity * (item.unit_cost || 0)
     if (existing) {
@@ -416,7 +429,7 @@ export function Dashboard() {
                         className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
                       >
                         <div className="flex-1">
-                          <div className="font-medium">{item.name}</div>
+                          <div className="font-medium">{getItemName(item)}</div>
                           <div className="text-sm text-muted-foreground">
                             Stock: {item.quantity} / {item.reorder_point} ({Math.round(stockLevel)}%)
                           </div>
@@ -575,9 +588,9 @@ export function Dashboard() {
                       className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex-1">
-                        <div className="font-medium">{item.name}</div>
+                        <div className="font-medium">{getItemName(item)}</div>
                         <div className="text-sm text-muted-foreground">
-                          <code className="rounded bg-muted px-2 py-0.5 text-xs">{item.sku}</code>
+                          <code className="rounded bg-muted px-2 py-0.5 text-xs">{getItemSku(item)}</code>
                         </div>
                         <div className="mt-2">
                           <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
@@ -634,7 +647,8 @@ export function Dashboard() {
               ) : (
                 <div className="space-y-3">
                   {recentTransactions.map((txn) => {
-                    const item = items.find(i => i.id === txn.item_id)
+                    // Use item_name directly from transaction (returned by API)
+                    const itemName = txn.item_name || 'Unknown'
                     return (
                       <div
                         key={txn.id}
@@ -655,7 +669,7 @@ export function Dashboard() {
                             )}
                           </div>
                           <div>
-                            <div className="font-medium text-sm">{item?.name || 'Unknown'}</div>
+                            <div className="font-medium text-sm">{itemName}</div>
                             <div className="text-xs text-muted-foreground">
                               {new Date(txn.created_at).toLocaleString()}
                             </div>

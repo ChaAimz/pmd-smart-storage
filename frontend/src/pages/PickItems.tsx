@@ -1,6 +1,15 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Search, PackageMinus, History, ArrowUpDown, ArrowUp, ArrowDown, Package, TrendingDown } from 'lucide-react'
+
+// Helper functions to handle both old and new API response formats
+const getItemName = (item: any): string => {
+  return item?.name || item?.master_name || item?.local_name || 'Unknown'
+}
+
+const getItemSku = (item: any): string => {
+  return item?.sku || item?.master_sku || item?.local_sku || 'N/A'
+}
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -80,8 +89,8 @@ export function PickItems() {
       filtered = filtered.filter(txn => {
         const item = items.find(i => i.id === txn.item_id)
         return (
-          item?.name.toLowerCase().includes(filterText.toLowerCase()) ||
-          item?.sku.toLowerCase().includes(filterText.toLowerCase()) ||
+          getItemName(item).toLowerCase().includes(filterText.toLowerCase()) ||
+          getItemSku(item).toLowerCase().includes(filterText.toLowerCase()) ||
           txn.notes?.toLowerCase().includes(filterText.toLowerCase())
         )
       })
@@ -95,8 +104,8 @@ export function PickItems() {
         if (sortColumn === 'item') {
           const aItem = items.find(i => i.id === a.item_id)
           const bItem = items.find(i => i.id === b.item_id)
-          aValue = aItem?.name || ''
-          bValue = bItem?.name || ''
+          aValue = getItemName(aItem)
+          bValue = getItemName(bItem)
         } else if (sortColumn === 'quantity') {
           aValue = Math.abs(a.quantity)
           bValue = Math.abs(b.quantity)
@@ -149,7 +158,7 @@ export function PickItems() {
         user_id: user?.id || 1
       })
 
-      toast.success(`Picked ${quantity} units of ${selectedItem.name}`)
+      toast.success(`Picked ${quantity} units of ${getItemName(selectedItem)}`)
 
       setShowPickDialog(false)
       fetchData()
@@ -160,8 +169,8 @@ export function PickItems() {
   }
 
   const filteredItems = items.filter(item =>
-    item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    item.sku.toLowerCase().includes(searchQuery.toLowerCase())
+    getItemName(item).toLowerCase().includes(searchQuery.toLowerCase()) ||
+    getItemSku(item).toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   // Generate monthly data for charts (last 6 months)
@@ -373,7 +382,9 @@ export function PickItems() {
                 </thead>
                 <tbody className="[&_tr:last-child]:border-0">
                   {filteredAndSortedTransactions.map((txn, index) => {
-                    const item = items.find(i => i.id === txn.item_id)
+                    // Use item_name and sku directly from transaction (returned by API)
+                    const itemName = txn.item_name || 'Unknown'
+                    const itemSku = txn.sku || 'N/A'
                     return (
                       <motion.tr
                         key={txn.id}
@@ -383,11 +394,11 @@ export function PickItems() {
                         className="border-b transition-colors hover:bg-muted/50"
                       >
                         <td className="p-4 align-middle font-medium">
-                          {item?.name || 'Unknown'}
+                          {itemName}
                         </td>
                         <td className="p-4 align-middle">
                           <code className="rounded bg-muted px-2 py-1 text-xs">
-                            {item?.sku || 'N/A'}
+                            {itemSku}
                           </code>
                         </td>
                         <td className="p-4 align-middle">
@@ -453,8 +464,8 @@ export function PickItems() {
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-medium">{item.name}</p>
-                            <p className="text-sm text-muted-foreground">SKU: {item.sku}</p>
+                            <p className="font-medium">{getItemName(item)}</p>
+                            <p className="text-sm text-muted-foreground">SKU: {getItemSku(item)}</p>
                           </div>
                           <div className="text-right">
                             <Badge variant={item.quantity > 0 ? 'default' : 'destructive'}>
@@ -477,8 +488,8 @@ export function PickItems() {
               >
                 <div>
                   <Label className="text-xs text-muted-foreground">Selected Item</Label>
-                  <p className="font-medium">{selectedItem.name}</p>
-                  <p className="text-sm text-muted-foreground">SKU: {selectedItem.sku}</p>
+                  <p className="font-medium">{getItemName(selectedItem)}</p>
+                  <p className="text-sm text-muted-foreground">SKU: {getItemSku(selectedItem)}</p>
                   <p className="text-sm">Available: {selectedItem.quantity} units</p>
                 </div>
 

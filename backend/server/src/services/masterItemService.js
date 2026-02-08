@@ -346,6 +346,45 @@ class MasterItemService {
     sql += ` ORDER BY urgency DESC, si.quantity ASC`;
     return await this.db.all(sql, params);
   }
+
+  // ==================== BACKWARD COMPATIBILITY ====================
+  
+  // Alias for addItemToStore with storeId as first parameter
+  async createStoreItem(storeId, data) {
+    return await this.addItemToStore({ ...data, store_id: storeId });
+  }
+  
+  // Update store item
+  async updateStoreItem(storeItemId, data) {
+    const allowedFields = ['local_sku', 'local_name', 'min_quantity', 'reorder_point', 'reorder_quantity', 'safety_stock', 'lead_time_days'];
+    const updates = [];
+    const values = [];
+    
+    for (const field of allowedFields) {
+      if (data[field] !== undefined) {
+        updates.push(`${field} = ?`);
+        values.push(data[field]);
+      }
+    }
+    
+    if (updates.length === 0) {
+      throw new Error('No fields to update');
+    }
+    
+    values.push(storeItemId);
+    const sql = `UPDATE store_items SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+    await this.db.run(sql, values);
+    this.logger.info(`Updated store item ${storeItemId}`);
+    return true;
+  }
+  
+  // Delete store item (soft delete)
+  async deleteStoreItem(storeItemId) {
+    const sql = `UPDATE store_items SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+    await this.db.run(sql, [storeItemId]);
+    this.logger.info(`Deleted store item ${storeItemId}`);
+    return true;
+  }
 }
 
 module.exports = MasterItemService;

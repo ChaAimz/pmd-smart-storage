@@ -388,14 +388,98 @@ class Database {
       CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
     `;
 
-    this.db.exec(schema, (err) => {
-      if (err) {
-        this.logger.error('Error creating tables:', err);
-      } else {
-        this.logger.info('Database schema initialized');
-        this.ready = true;
-      }
+    // Execute schema creation - use serialize to ensure order
+    this.db.serialize(() => {
+      this.db.exec(schema, (err) => {
+        if (err) {
+          this.logger.error('Error creating tables:', err);
+        } else {
+          this.logger.info('Database schema initialized');
+        }
+      });
     });
+    
+    // Always run migrations after schema (even if schema had errors)
+    // Use setImmediate to ensure this runs after current execution
+    setImmediate(async () => {
+      await this.runMigrations();
+      this.ready = true;
+    });
+  }
+
+  async runMigrations() {
+    try {
+      this.logger.info('Running database migrations...');
+      
+      // Wait for tables to exist (retry a few times)
+      let retries = 5;
+      while (retries > 0) {
+        const tables = await this.all(`SELECT name FROM sqlite_master WHERE type='table'`);
+        if (tables.length > 0) break;
+        this.logger.info('Waiting for tables to be created...');
+        await new Promise(r => setTimeout(r, 500));
+        retries--;
+      }
+      
+      // Migration: Add is_active to users table if not exists
+      try {
+        const usersColumns = await this.all(`PRAGMA table_info(users)`);
+        if (usersColumns.length > 0 && !usersColumns.find(c => c.name === 'is_active')) {
+          this.logger.info('Migration: Adding is_active column to users table');
+          await this.run(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`);
+        }
+      } catch (e) {
+        this.logger.warn('Users table migration skipped:', e.message);
+      }
+      
+      // Migration: Add is_active to departments table if not exists
+      try {
+        const deptColumns = await this.all(`PRAGMA table_info(departments)`);
+        if (deptColumns.length > 0 && !deptColumns.find(c => c.name === 'is_active')) {
+          this.logger.info('Migration: Adding is_active column to departments table');
+          await this.run(`ALTER TABLE departments ADD COLUMN is_active INTEGER DEFAULT 1`);
+        }
+      } catch (e) {
+        this.logger.warn('Departments table migration skipped:', e.message);
+      }
+      
+      // Migration: Add is_active to stores table if not exists
+      try {
+        const storeColumns = await this.all(`PRAGMA table_info(stores)`);
+        if (storeColumns.length > 0 && !storeColumns.find(c => c.name === 'is_active')) {
+          this.logger.info('Migration: Adding is_active column to stores table');
+          await this.run(`ALTER TABLE stores ADD COLUMN is_active INTEGER DEFAULT 1`);
+        }
+      } catch (e) {
+        this.logger.warn('Stores table migration skipped:', e.message);
+      }
+      
+      // Migration: Add is_active to master_items table if not exists
+      try {
+        const itemColumns = await this.all(`PRAGMA table_info(master_items)`);
+        if (itemColumns.length > 0 && !itemColumns.find(c => c.name === 'is_active')) {
+          this.logger.info('Migration: Adding is_active column to master_items table');
+          await this.run(`ALTER TABLE master_items ADD COLUMN is_active INTEGER DEFAULT 1`);
+        }
+      } catch (e) {
+        this.logger.warn('Master_items table migration skipped:', e.message);
+      }
+      
+      // Migration: Add is_active to store_items table if not exists
+      try {
+        const storeItemColumns = await this.all(`PRAGMA table_info(store_items)`);
+        if (storeItemColumns.length > 0 && !storeItemColumns.find(c => c.name === 'is_active')) {
+          this.logger.info('Migration: Adding is_active column to store_items table');
+          await this.run(`ALTER TABLE store_items ADD COLUMN is_active INTEGER DEFAULT 1`);
+        }
+      } catch (e) {
+        this.logger.warn('Store_items table migration skipped:', e.message);
+      }
+      
+      this.logger.info('Database migrations completed');
+    } catch (err) {
+      this.logger.error('Migration error:', err);
+    }
   }
 
   isReady() {

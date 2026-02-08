@@ -76,6 +76,12 @@ export interface Item {
   supplier_contact?: string;
   created_at: string;
   updated_at: string;
+  // Fields from backend API response (optional)
+  master_name?: string;
+  master_sku?: string;
+  local_name?: string;
+  local_sku?: string;
+  master_category?: string;
 }
 
 export interface LowStockItem extends Item {
@@ -114,7 +120,7 @@ export interface ApiResponse<T> {
 }
 
 // Authentication
-export async function login(username: string, password: string): Promise<User> {
+export async function login(username: string, password: string): Promise<{ token: string; user: User }> {
   const response = await fetch(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
     headers: {
@@ -123,7 +129,7 @@ export async function login(username: string, password: string): Promise<User> {
     body: JSON.stringify({ username, password }),
   });
 
-  const result: ApiResponse<User> = await response.json();
+  const result: ApiResponse<{ token: string; user: User }> = await response.json();
 
   if (!result.success || !result.data) {
     throw new Error(result.error || 'Login failed');
@@ -134,7 +140,12 @@ export async function login(username: string, password: string): Promise<User> {
 
 // Items
 export async function getAllItems(): Promise<Item[]> {
-  const response = await fetch(`${API_BASE_URL}/items`);
+  const response = await fetch(`${API_BASE_URL}/items`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+    }
+  });
   const result: ApiResponse<Item[]> = await response.json();
 
   if (!result.success || !result.data) {
@@ -145,7 +156,12 @@ export async function getAllItems(): Promise<Item[]> {
 }
 
 export async function getLowStockItems(): Promise<LowStockItem[]> {
-  const response = await fetch(`${API_BASE_URL}/items/low-stock`);
+  const response = await fetch(`${API_BASE_URL}/items/low-stock`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+    }
+  });
   const result: ApiResponse<LowStockItem[]> = await response.json();
 
   if (!result.success || !result.data) {
@@ -157,7 +173,12 @@ export async function getLowStockItems(): Promise<LowStockItem[]> {
 
 // Purchase Orders
 export async function getPurchaseOrders(): Promise<PurchaseOrder[]> {
-  const response = await fetch(`${API_BASE_URL}/purchase-orders`);
+  const response = await fetch(`${API_BASE_URL}/purchase-orders`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+    }
+  });
   const result: ApiResponse<PurchaseOrder[]> = await response.json();
 
   if (!result.success || !result.data) {
@@ -193,7 +214,12 @@ export async function createPurchaseOrder(data: {
 
 // Transactions
 export async function getTransactions(limit = 100): Promise<Transaction[]> {
-  const response = await fetch(`${API_BASE_URL}/transactions?limit=${limit}`);
+  const response = await fetch(`${API_BASE_URL}/transactions?limit=${limit}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+    }
+  });
   const result: ApiResponse<Transaction[]> = await response.json();
 
   if (!result.success || !result.data) {
@@ -205,7 +231,12 @@ export async function getTransactions(limit = 100): Promise<Transaction[]> {
 
 // Locations
 export async function getAllLocations(): Promise<any[]> {
-  const response = await fetch(`${API_BASE_URL}/locations`);
+  const response = await fetch(`${API_BASE_URL}/locations`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+    }
+  });
   const result: ApiResponse<any[]> = await response.json();
 
   if (!result.success || !result.data) {
@@ -217,7 +248,12 @@ export async function getAllLocations(): Promise<any[]> {
 
 // Statistics
 export async function getStatistics(): Promise<any> {
-  const response = await fetch(`${API_BASE_URL}/stats`);
+  const response = await fetch(`${API_BASE_URL}/stats`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+    }
+  });
   const result: ApiResponse<any> = await response.json();
 
   if (!result.success || !result.data) {

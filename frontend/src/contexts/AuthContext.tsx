@@ -41,10 +41,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string) => {
     try {
       // Call actual API
-      const authenticatedUser = await api.login(username, password)
-
-      setUser(authenticatedUser)
-      localStorage.setItem('user', JSON.stringify(authenticatedUser))
+      const response = await api.login(username, password)
+      
+      // Backend returns { token, user }
+      const { token, ...userData } = response as any
+      
+      setUser(userData)
+      localStorage.setItem('user', JSON.stringify(userData))
+      localStorage.setItem('token', token) // Store token separately
     } catch (error) {
       console.error('Login error:', error)
       throw error
@@ -54,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null)
     localStorage.removeItem('user')
+    localStorage.removeItem('token')
   }
 
   return (

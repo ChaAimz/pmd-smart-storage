@@ -61,15 +61,20 @@ export function ManageItems() {
 
   const filteredItems = items
     .filter((item) => {
+      // Handle API response structure with master_name/master_sku
+      const itemName = item.name || (item as any).master_name || ''
+      const itemSku = item.sku || (item as any).master_sku || (item as any).local_sku || ''
       const matchesSearch =
-        item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.sku.toLowerCase().includes(searchQuery.toLowerCase())
+        itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        itemSku.toLowerCase().includes(searchQuery.toLowerCase())
       const matchesCategory =
         selectedCategory === 'All' || item.category === selectedCategory
       return matchesSearch && matchesCategory
     })
     .sort((a, b) => {
-      if (sortBy === 'name') return a.name.localeCompare(b.name)
+      const nameA = a.name || (a as any).master_name || ''
+      const nameB = b.name || (b as any).master_name || ''
+      if (sortBy === 'name') return nameA.localeCompare(nameB)
       if (sortBy === 'quantity') return b.quantity - a.quantity
       return 0 // For 'updated', would need actual dates
     })
@@ -307,7 +312,12 @@ export function ManageItems() {
                 </tr>
               </thead>
               <tbody>
-                {filteredItems.map((item, index) => (
+                {filteredItems.map((item, index) => {
+                  // Handle API response structure
+                  const itemName = item.name || (item as any).master_name || (item as any).local_name || 'N/A'
+                  const itemSku = item.sku || (item as any).master_sku || (item as any).local_sku || 'N/A'
+                  const itemCategory = item.category || (item as any).master_category || 'General'
+                  return (
                   <motion.tr
                     key={item.id}
                     initial={{ opacity: 0, y: 20 }}
@@ -317,12 +327,12 @@ export function ManageItems() {
                   >
                     <td className="py-4">
                       <code className="rounded bg-muted px-2 py-1 text-xs">
-                        {item.sku}
+                        {itemSku}
                       </code>
                     </td>
-                    <td className="py-4 font-medium">{item.name}</td>
+                    <td className="py-4 font-medium">{itemName}</td>
                     <td className="py-4">
-                      <Badge variant="outline">{item.category}</Badge>
+                      <Badge variant="outline">{itemCategory}</Badge>
                     </td>
                     <td className="py-4">
                       <div className="flex flex-col">
@@ -367,7 +377,7 @@ export function ManageItems() {
                       </DropdownMenu>
                     </td>
                   </motion.tr>
-                ))}
+                )})}
               </tbody>
             </table>
           </div>
