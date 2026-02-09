@@ -7,6 +7,7 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed": "node src/seed.js",
+    "seed:extra": "node src/seed-extra.js",
     "test": "jest",
     "lint": "eslint src/"
   },

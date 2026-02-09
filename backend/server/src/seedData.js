@@ -265,12 +265,12 @@ async function seedPurchaseOrders(db) {
     expectedDate.setDate(expectedDate.getDate() + Math.floor(Math.random() * 30));
     
     await db.run(
-      `INSERT INTO purchase_orders (
+      `INSERT OR IGNORE INTO purchase_orders (
         po_number, item_id, quantity, unit_cost, total_cost,
         supplier_name, status, expected_date, notes, created_by, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        `PO-${new Date().getFullYear()}-${String(i + 1).padStart(4, '0')}`,
+        `PO-${new Date().getFullYear()}-${String(i + 1).padStart(4, '0')}-${Date.now().toString(36).slice(-4)}`,
         itemId,
         quantity,
         unitCost,
@@ -286,6 +286,59 @@ async function seedPurchaseOrders(db) {
   }
   
   console.log(`✓ Seeded ${poCount} purchase orders`);
+}
+
+// Seed additional 100 items
+async function seedAdditionalItems(db, count = 100) {
+  console.log(`Seeding additional ${count} items...`);
+  
+  // Start from item 201
+  const startIndex = 200;
+  
+  for (let i = 0; i < count; i++) {
+    const index = startIndex + i;
+    const category = categories[index % categories.length];
+    const supplier = suppliers[index % suppliers.length];
+    const sku = generateSKU(index);
+    const name = generateItemName();
+    
+    const quantity = Math.floor(Math.random() * 500);
+    const reorderPoint = Math.floor(Math.random() * 50) + 20;
+    const reorderQuantity = Math.floor(Math.random() * 100) + 50;
+    const safetyStock = Math.floor(Math.random() * 30) + 10;
+    const minQuantity = Math.floor(reorderPoint * 0.5);
+    const leadTimeDays = Math.floor(Math.random() * 14) + 3;
+    const unitCost = (Math.random() * 500 + 10).toFixed(2);
+    
+    await db.run(
+      `INSERT OR IGNORE INTO items (
+        sku, name, description, category, quantity, unit,
+        min_quantity, reorder_point, reorder_quantity, safety_stock,
+        lead_time_days, unit_cost, supplier_name, supplier_contact,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        sku,
+        name,
+        `High-quality ${name.toLowerCase()} for industrial use`,
+        category,
+        quantity,
+        'pcs',
+        minQuantity,
+        reorderPoint,
+        reorderQuantity,
+        safetyStock,
+        leadTimeDays,
+        unitCost,
+        supplier.name,
+        supplier.contact,
+        randomPastDate(180),
+        new Date().toISOString()
+      ]
+    );
+  }
+  
+  console.log(`✓ Seeded ${count} additional items`);
 }
 
 // Main seed function
@@ -306,5 +359,5 @@ async function seedDatabase(db) {
   }
 }
 
-module.exports = { seedDatabase };
+module.exports = { seedDatabase, seedAdditionalItems };
 
