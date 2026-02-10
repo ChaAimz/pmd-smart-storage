@@ -1,8 +1,8 @@
-import { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import type { LucideProps } from 'lucide-react'
 
 interface PageHeaderProps {
-  icon?: React.ComponentType<LucideProps>
+  icon?: ComponentType<LucideProps>
   title: string
   description?: string
   actions?: ReactNode
@@ -12,8 +12,12 @@ interface PageHeaderProps {
 export function PageHeader({ icon: Icon, title, description, actions, badge }: PageHeaderProps) {
   return (
     <div className="flex items-center justify-between">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+      <div className="space-y-1">
+        <div className="flex items-center gap-2">
+          {Icon && <Icon className="h-6 w-6 text-muted-foreground" />}
+          <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+          {badge}
+        </div>
         {description && (
           <p className="text-muted-foreground">
             {description}
@@ -24,4 +28,3 @@ export function PageHeader({ icon: Icon, title, description, actions, badge }: P
     </div>
   )
 }
-

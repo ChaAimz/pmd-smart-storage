@@ -78,7 +78,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (!token) return;
 
     const eventSource = new EventSource(
-      `${import.meta.env.VITE_API_URL}/notifications/stream`,
+      `${api.API_BASE_URL}/notifications/stream`,
       { headers: { Authorization: `Bearer ${token}` } } as any
     );
 

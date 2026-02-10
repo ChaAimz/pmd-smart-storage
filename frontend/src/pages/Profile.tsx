@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
-  User, Mail, Shield, Calendar, Save, 
+  User, Mail, Calendar, Save, 
   Lock, Bell, Activity, LogOut 
 } from 'lucide-react'
 import { toast } from 'sonner'

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { MapPin, Plus, Edit, Grid3x3, Eye, Package, Warehouse } from 'lucide-react'
+import { MapPin, Plus, Edit, Grid3x3, Eye, Package } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,8 +16,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { PageHeader } from '@/components/layout/PageHeader'
-import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
 
 interface LocationItem {
@@ -42,7 +40,6 @@ const zones = ['A', 'B', 'C', 'All']
 
 export function ManageLocations() {
   const [locations, setLocations] = useState<Location[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [selectedZone, setSelectedZone] = useState<string>('All')
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null)
@@ -56,14 +53,11 @@ export function ManageLocations() {
 
   async function fetchLocations() {
     try {
-      setIsLoading(true)
       const data = await api.getAllLocations()
       setLocations(data)
     } catch (error) {
       console.error('Error fetching locations:', error)
       toast.error('Failed to load locations')
-    } finally {
-      setIsLoading(false)
     }
   }
 

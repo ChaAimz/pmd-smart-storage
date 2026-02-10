@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
-import { Separator } from '@/components/ui/separator'
 import {
   Dialog,
   DialogContent,
@@ -14,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   AlertTriangle,
@@ -28,7 +26,6 @@ import {
   XCircle,
   AlertCircle,
   Search,
-  Filter,
   ClipboardList,
   Plus,
   ArrowUpDown,
@@ -176,8 +173,6 @@ export default function InventoryPlanning() {
         unit_cost: item.unit_cost || 0
       }))
 
-      const totalCost = items.reduce((sum, item) => sum + (item.reorder_quantity || 0) * (item.unit_cost || 0), 0)
-
       await api.createPurchaseOrder({
         supplier_name: 'Default Supplier',
         items: itemsJson,
@@ -210,7 +205,6 @@ export default function InventoryPlanning() {
     sum + (item.reorder_quantity || 0) * (item.unit_cost || 0), 0
   )
   const criticalItems = lowStockItems.filter(item => getUrgencyLevel(item) === 4)
-  const highPriorityItems = lowStockItems.filter(item => getUrgencyLevel(item) >= 3)
 
   if (isLoading) {
     return (
@@ -627,7 +621,7 @@ export default function InventoryPlanning() {
                 <tbody>
                   {lowStockItems
                     .filter(item => selectedItems.includes(item.id))
-                    .map((item, index) => (
+                    .map((item) => (
                       <tr key={item.id} className="border-b border-border">
                         <td className="p-4">
                           <div className="font-medium text-sm">{item.name}</div>

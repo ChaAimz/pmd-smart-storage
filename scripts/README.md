@@ -27,6 +27,7 @@ scripts/
 |--------|-------------|
 | [check-mesh-status.ps1](check/check-mesh-status.ps1) | Check BLE Mesh network status |
 | [check-model-bindings.ps1](check/check-model-bindings.ps1) | Check model bindings |
+| [allow-local-dev-firewall.ps1](check/allow-local-dev-firewall.ps1) | Open Windows Firewall ports for frontend/backend |
 
 ## 🐳 Docker Scripts
 
@@ -53,6 +54,7 @@ scripts/
 | [test-factory-reset-mqtt.ps1](test/test-factory-reset-mqtt.ps1) | Test factory reset via MQTT |
 | [test-led.ps1](test/test-led.ps1) | Test LED control |
 | [test-mesh-storage.ps1](test/test-mesh-storage.ps1) | Test mesh storage operations |
+| [start-local-dev.ps1](test/start-local-dev.ps1) | Start backend + frontend for local testing |
 
 ## 🚀 Quick Start
 
@@ -81,6 +83,15 @@ cd scripts/docker && docker-compose up -d
 
 # Test factory reset
 .\scripts\test\test-factory-reset.ps1
+
+# Start backend + frontend quickly
+.\scripts\test\start-local-dev.ps1
+
+# Or from project root via npm
+npm run dev:test
+
+# Open firewall for LAN access (run as Administrator)
+npm run dev:firewall
 ```
 
 ### Check Status

@@ -1,4 +1,28 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+function resolveApiBaseUrl(): string {
+  const envApiUrl = (import.meta.env.VITE_API_URL || '').trim();
+
+  if (!envApiUrl) {
+    return '/api';
+  }
+
+  try {
+    const url = new URL(envApiUrl, window.location.origin);
+    const isLoopback = url.hostname === 'localhost' || url.hostname === '127.0.0.1';
+    const browserHost = window.location.hostname;
+    const browserIsLoopback = browserHost === 'localhost' || browserHost === '127.0.0.1';
+
+    // If frontend is opened from another machine, remap localhost API to that machine's host.
+    if (isLoopback && !browserIsLoopback) {
+      url.hostname = browserHost;
+    }
+
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return envApiUrl;
+  }
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 
 // Generic API functions
 export async function get(url: string, params?: Record<string, any>): Promise<any> {

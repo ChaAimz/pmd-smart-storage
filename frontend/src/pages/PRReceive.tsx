@@ -20,7 +20,6 @@ import {
   Package, 
   Truck, 
   FileText, 
-  Calendar,
   ArrowLeft,
   CheckCircle,
   AlertCircle
@@ -175,8 +174,7 @@ export function PRReceive() {
 
   const remainingItems = getRemainingItems();
   const totalQuantity = receiveItems.reduce((sum, item) => sum + item.received_quantity, 0);
-  const totalCost = receiveItems.reduce((sum, item, idx) => {
-    const itemData = remainingItems[idx];
+  const totalCost = receiveItems.reduce((sum, item) => {
     return sum + (item.received_quantity * item.actual_unit_cost);
   }, 0);
 
@@ -294,7 +292,7 @@ export function PRReceive() {
                   All items received
                 </div>
               ) : (
-                remainingItems.map((item, idx) => {
+                remainingItems.map((item) => {
                   const receiveItem = receiveItems.find(r => r.pr_item_id === item.id);
                   const remaining = item.requested_quantity - item.received_quantity;
                   

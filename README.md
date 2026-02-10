@@ -149,6 +149,27 @@ npm run dev
 - Backend health: `http://localhost:3001/health`
 - API base: `http://localhost:3001/api`
 
+### 5. One-Command Local Test (Windows)
+
+Instead of opening two terminals:
+
+```powershell
+npm run dev:test
+# or double-click/run:
+.\run-test.cmd
+```
+
+This starts backend + frontend in separate PowerShell windows and opens:
+
+- `http://localhost:5173`
+- `http://localhost:3001/health`
+
+If another machine in LAN still cannot connect, run once as Administrator:
+
+```powershell
+npm run dev:firewall
+```
+
 ## Default Seed Credentials
 
 When `npm run seed` is executed in `backend/server`, demo users are:

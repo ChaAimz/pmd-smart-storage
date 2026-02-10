@@ -32,7 +32,6 @@ const categories = ['All', 'Electronics', 'Clothing', 'Food', 'Tools', 'Hardware
 
 export function ManageItems() {
   const [items, setItems] = useState<api.Item[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedItem, setSelectedItem] = useState<api.Item | null>(null)
@@ -45,14 +44,11 @@ export function ManageItems() {
   useEffect(() => {
     async function fetchItems() {
       try {
-        setIsLoading(true)
         const data = await api.getAllItems()
         setItems(data)
       } catch (error) {
         console.error('Error fetching items:', error)
         toast.error('Failed to load items')
-      } finally {
-        setIsLoading(false)
       }
     }
 

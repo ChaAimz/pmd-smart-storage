@@ -32,10 +32,26 @@ const logger = winston.createLogger({
 // Express app setup
 const app = express();
 const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
 
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+async function tableExists(tableName) {
+  const row = await new Promise((resolve, reject) => {
+    db.db.get(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      [tableName],
+      (err, result) => {
+        if (err) reject(err);
+        else resolve(result);
+      }
+    );
+  });
+
+  return !!row;
+}
 
 // Initialize database
 const db = new Database('./data/warehouse.db', logger);
@@ -632,9 +648,284 @@ app.use((err, req, res, next) => {
 });
 
 // Start server
-app.listen(PORT, () => {
-  logger.info(`Smart Storage Server running on port ${PORT}`);
+app.listen(PORT, HOST, () => {
+  logger.info(`Smart Storage Server running on ${HOST}:${PORT}`);
   logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// ==================== PR (Compatibility endpoints for Receive/PR pages) ====================
+app.get('/api/prs', async (req, res) => {
+  try {
+    const hasPrTable = await tableExists('purchase_requisitions');
+    const hasPrItemsTable = await tableExists('pr_items');
+
+    if (!hasPrTable || !hasPrItemsTable) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const params = [];
+    let whereClause = '';
+    if (req.query.status) {
+      whereClause = 'WHERE pr.status = ?';
+      params.push(req.query.status);
+    }
+
+    const prs = await new Promise((resolve, reject) => {
+      db.db.all(
+        `
+          SELECT
+            pr.*,
+            COALESCE(u.full_name, 'Unknown') AS requester_name,
+            COUNT(pri.id) AS item_count,
+            COALESCE(SUM(pri.quantity * COALESCE(pri.estimated_unit_cost, 0)), 0) AS estimated_total
+          FROM purchase_requisitions pr
+          LEFT JOIN users u ON u.id = pr.requester_id
+          LEFT JOIN pr_items pri ON pri.pr_id = pr.id
+          ${whereClause}
+          GROUP BY pr.id
+          ORDER BY date(pr.required_date) ASC, pr.created_at DESC
+        `,
+        params,
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        }
+      );
+    });
+
+    res.json({ success: true, data: prs });
+  } catch (error) {
+    logger.error('Error getting PRs:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/prs/:id', async (req, res) => {
+  try {
+    const hasPrTable = await tableExists('purchase_requisitions');
+    const hasPrItemsTable = await tableExists('pr_items');
+
+    if (!hasPrTable || !hasPrItemsTable) {
+      return res.status(404).json({ success: false, error: 'PR feature not initialized' });
+    }
+
+    const pr = await new Promise((resolve, reject) => {
+      db.db.get(
+        `
+          SELECT
+            pr.*,
+            COALESCE(u.full_name, 'Unknown') AS requester_name,
+            COALESCE(s.name, 'Main Store') AS store_name,
+            COALESCE(d.name, 'General') AS department_name
+          FROM purchase_requisitions pr
+          LEFT JOIN users u ON u.id = pr.requester_id
+          LEFT JOIN stores s ON s.id = pr.store_id
+          LEFT JOIN departments d ON d.id = s.department_id
+          WHERE pr.id = ?
+        `,
+        [req.params.id],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    if (!pr) {
+      return res.status(404).json({ success: false, error: 'PR not found' });
+    }
+
+    const items = await new Promise((resolve, reject) => {
+      db.db.all(
+        `
+          SELECT
+            pri.id,
+            pri.pr_id,
+            pri.master_item_id,
+            COALESCE(mi.sku, 'N/A') AS sku,
+            COALESCE(mi.name, 'Unknown') AS name,
+            COALESCE(mi.name, 'Unknown') AS item_name,
+            COALESCE(mi.unit, 'pcs') AS unit,
+            pri.quantity AS requested_quantity,
+            pri.quantity AS quantity,
+            COALESCE(pri.received_quantity, 0) AS received_quantity,
+            COALESCE(pri.estimated_unit_cost, 0) AS estimated_unit_cost,
+            pri.notes
+          FROM pr_items pri
+          LEFT JOIN master_items mi ON mi.id = pri.master_item_id
+          WHERE pri.pr_id = ?
+          ORDER BY pri.id ASC
+        `,
+        [req.params.id],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        }
+      );
+    });
+
+    pr.items = items;
+    res.json({ success: true, data: pr });
+  } catch (error) {
+    logger.error('Error getting PR detail:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/prs/:id/receive', async (req, res) => {
+  try {
+    const { items = [], po_number, received_date } = req.body;
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'items array is required' });
+    }
+
+    const prId = parseInt(req.params.id, 10);
+    if (Number.isNaN(prId)) {
+      return res.status(400).json({ success: false, error: 'Invalid PR id' });
+    }
+
+    await new Promise((resolve, reject) => {
+      db.db.run('BEGIN TRANSACTION', (err) => (err ? reject(err) : resolve()));
+    });
+
+    let receivedCount = 0;
+    for (const item of items) {
+      const prItemId = parseInt(item.pr_item_id, 10);
+      const receivedQty = parseInt(item.received_quantity, 10);
+
+      if (Number.isNaN(prItemId) || Number.isNaN(receivedQty) || receivedQty <= 0) {
+        continue;
+      }
+
+      await new Promise((resolve, reject) => {
+        db.db.run(
+          `
+            UPDATE pr_items
+            SET received_quantity = COALESCE(received_quantity, 0) + ?
+            WHERE id = ? AND pr_id = ?
+          `,
+          [receivedQty, prItemId, prId],
+          function(err) {
+            if (err) reject(err);
+            else resolve(this.changes);
+          }
+        );
+      });
+
+      receivedCount += 1;
+    }
+
+    const prItems = await new Promise((resolve, reject) => {
+      db.db.all(
+        'SELECT quantity, COALESCE(received_quantity, 0) as received_quantity FROM pr_items WHERE pr_id = ?',
+        [prId],
+        (err, rows) => {
+          if (err) reject(err);
+          else resolve(rows);
+        }
+      );
+    });
+
+    const hasAny = prItems.some((row) => row.received_quantity > 0);
+    const allDone = prItems.length > 0 && prItems.every((row) => row.received_quantity >= row.quantity);
+    const status = allDone ? 'fully_received' : hasAny ? 'partially_received' : 'ordered';
+
+    await new Promise((resolve, reject) => {
+      db.db.run(
+        'UPDATE purchase_requisitions SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [status, prId],
+        (err) => (err ? reject(err) : resolve())
+      );
+    });
+
+    await new Promise((resolve, reject) => {
+      db.db.run('COMMIT', (err) => (err ? reject(err) : resolve()));
+    });
+
+    res.json({
+      success: true,
+      data: {
+        status,
+        po_number: po_number || null,
+        received_date: received_date || new Date().toISOString().split('T')[0],
+        received_count: receivedCount
+      }
+    });
+  } catch (error) {
+    await new Promise((resolve) => db.db.run('ROLLBACK', () => resolve()));
+    logger.error('Error receiving PR items:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/prs/:id/eta', async (req, res) => {
+  try {
+    const hasPrTable = await tableExists('purchase_requisitions');
+    if (!hasPrTable) {
+      return res.status(404).json({ success: false, error: 'PR feature not initialized' });
+    }
+
+    const prId = parseInt(req.params.id, 10);
+    if (Number.isNaN(prId)) {
+      return res.status(400).json({ success: false, error: 'Invalid PR id' });
+    }
+
+    const { required_date, reason } = req.body || {};
+    if (!required_date || !/^\d{4}-\d{2}-\d{2}$/.test(required_date)) {
+      return res.status(400).json({ success: false, error: 'required_date must be YYYY-MM-DD' });
+    }
+
+    const existingPr = await new Promise((resolve, reject) => {
+      db.db.get(
+        'SELECT id, pr_number, required_date, notes FROM purchase_requisitions WHERE id = ?',
+        [prId],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    if (!existingPr) {
+      return res.status(404).json({ success: false, error: 'PR not found' });
+    }
+
+    const cleanReason = typeof reason === 'string' ? reason.trim() : '';
+    let nextNotes = existingPr.notes || null;
+    if (cleanReason) {
+      const previousDate = existingPr.required_date || 'N/A';
+      const auditLine = `[ETA Updated ${previousDate} -> ${required_date}] ${cleanReason}`;
+      nextNotes = nextNotes ? `${nextNotes}\n${auditLine}` : auditLine;
+    }
+
+    await new Promise((resolve, reject) => {
+      db.db.run(
+        'UPDATE purchase_requisitions SET required_date = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [required_date, nextNotes, prId],
+        function(err) {
+          if (err) reject(err);
+          else resolve(this.changes);
+        }
+      );
+    });
+
+    const updatedPr = await new Promise((resolve, reject) => {
+      db.db.get(
+        'SELECT id, pr_number, status, required_date, notes, updated_at FROM purchase_requisitions WHERE id = ?',
+        [prId],
+        (err, row) => {
+          if (err) reject(err);
+          else resolve(row);
+        }
+      );
+    });
+
+    logger.info(`Updated ETA for PR ${updatedPr.pr_number}: ${existingPr.required_date} -> ${required_date}`);
+    res.json({ success: true, data: updatedPr });
+  } catch (error) {
+    logger.error('Error updating PR ETA:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 // Graceful shutdown

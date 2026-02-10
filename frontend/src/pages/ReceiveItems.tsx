@@ -1,20 +1,97 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { Search, PackagePlus, History, ArrowUpDown, ArrowUp, ArrowDown, Package } from 'lucide-react'
+import {
+  Search,
+  PackagePlus,
+  History,
+  CalendarClock,
+  CalendarDays,
+} from 'lucide-react'
+
+interface ItemLike {
+  name?: string
+  master_name?: string
+  local_name?: string
+  sku?: string
+  master_sku?: string
+  local_sku?: string
+}
+
+interface PRItemLike extends ItemLike {
+  item_name?: string
+  requested_quantity?: number
+  quantity?: number
+  received_quantity?: number
+  pending_quantity?: number
+  remaining_quantity?: number
+}
+
+interface PRLike {
+  id: number
+  pr_number?: string
+  status?: string
+  required_date?: string
+  expected_delivery_date?: string
+  expected_date?: string
+  items?: PRItemLike[]
+}
 
 // Helper functions to handle both old and new API response formats
-const getItemName = (item: any): string => {
+const getItemName = (item?: ItemLike | null): string => {
   return item?.name || item?.master_name || item?.local_name || 'Unknown'
 }
 
-const getItemSku = (item: any): string => {
+const getItemSku = (item?: ItemLike | null): string => {
   return item?.sku || item?.master_sku || item?.local_sku || 'N/A'
+}
+
+const getPrItemName = (item?: PRItemLike | null): string => {
+  return item?.item_name || item?.name || item?.local_name || item?.master_name || 'Unknown'
+}
+
+const getPrItemSku = (item?: PRItemLike | null): string => {
+  return item?.sku || item?.local_sku || item?.master_sku || 'N/A'
+}
+
+const getPrExpectedDate = (pr?: PRLike | null): string | null => {
+  return pr?.required_date || pr?.expected_delivery_date || pr?.expected_date || null
+}
+
+const parseDateOnly = (value?: string | null): Date | null => {
+  if (!value) return null
+  const dateOnly = value.split('T')[0]
+  const [year, month, day] = dateOnly.split('-').map(Number)
+  if (!year || !month || !day) return null
+  return new Date(year, month - 1, day)
+}
+
+const startOfDay = (date: Date): Date => new Date(date.getFullYear(), date.getMonth(), date.getDate())
+
+const addDays = (date: Date, days: number): Date => {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+const toInputDateValue = (value?: string | null): string => {
+  const date = parseDateOnly(value)
+  if (!date) return ''
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const toFiniteNumber = (value: unknown, fallback = 0): number => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : fallback
 }
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -28,20 +105,58 @@ import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePageContext } from '@/contexts/PageContext'
-import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts'
+
+interface PRGuideItem {
+  itemName: string
+  sku: string
+  remainingQuantity: number
+}
+
+interface PRGuideEntry {
+  id: number
+  prNumber: string
+  expectedDate: string
+  status: string
+  items: PRGuideItem[]
+}
+
+interface PRReceiveDialogItem {
+  pr_item_id: number
+  item_name: string
+  sku: string
+  requested_quantity: number
+  already_received_quantity: number
+  remaining_quantity: number
+  receive_quantity: number
+}
 
 export function ReceiveItems() {
   const [items, setItems] = useState<api.Item[]>([])
   const [transactions, setTransactions] = useState<api.Transaction[]>([])
+  const [incomingPrGuide, setIncomingPrGuide] = useState<PRGuideEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingPrGuide, setIsLoadingPrGuide] = useState(false)
   const [showReceiveDialog, setShowReceiveDialog] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedItem, setSelectedItem] = useState<api.Item | null>(null)
   const [quantity, setQuantity] = useState('')
   const [notes, setNotes] = useState('')
   const [filterText, setFilterText] = useState('')
-  const [sortColumn, setSortColumn] = useState<'item' | 'quantity' | 'time' | null>(null)
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [todayPrFilterText, setTodayPrFilterText] = useState('')
+  const [weeklyPrFilterText, setWeeklyPrFilterText] = useState('')
+  const [showPrReceiveDialog, setShowPrReceiveDialog] = useState(false)
+  const [isLoadingPrReceiveDetail, setIsLoadingPrReceiveDetail] = useState(false)
+  const [isSubmittingPrReceive, setIsSubmittingPrReceive] = useState(false)
+  const [selectedPrForReceive, setSelectedPrForReceive] = useState<PRGuideEntry | null>(null)
+  const [prReceiveItems, setPrReceiveItems] = useState<PRReceiveDialogItem[]>([])
+  const [prReceivePoNumber, setPrReceivePoNumber] = useState('')
+  const [prReceiveDate, setPrReceiveDate] = useState(new Date().toISOString().split('T')[0])
+  const [prReceiveNotes, setPrReceiveNotes] = useState('')
+  const [showMoveEtaDialog, setShowMoveEtaDialog] = useState(false)
+  const [isSubmittingMoveEta, setIsSubmittingMoveEta] = useState(false)
+  const [selectedPrForEta, setSelectedPrForEta] = useState<PRGuideEntry | null>(null)
+  const [etaDate, setEtaDate] = useState('')
+  const [etaReason, setEtaReason] = useState('')
 
   const { user } = useAuth()
   const { setPageInfo } = usePageContext()
@@ -50,11 +165,7 @@ export function ReceiveItems() {
     setPageInfo('Receive Items', 'Receive new inventory into the warehouse')
   }, [setPageInfo])
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
-  async function fetchData() {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true)
       const [itemsData, transactionsData] = await Promise.all([
@@ -64,66 +175,116 @@ export function ReceiveItems() {
       const receiveTransactions = transactionsData.filter(t => t.transaction_type === 'receive')
       setItems(itemsData)
       setTransactions(receiveTransactions)
+      await fetchIncomingPRGuide()
     } catch (error) {
       console.error('Error fetching data:', error)
       toast.error('Failed to load data')
     } finally {
       setIsLoading(false)
     }
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const fetchIncomingPRGuide = async () => {
+    try {
+      setIsLoadingPrGuide(true)
+      const response = await api.get('/prs')
+
+      if (!response?.success || !Array.isArray(response.data)) {
+        setIncomingPrGuide([])
+        return
+      }
+
+      const today = startOfDay(new Date())
+      const weekEnd = addDays(today, 6)
+
+      const prList = response.data as PRLike[]
+
+      const activePRs = prList.filter((pr) =>
+        ['ordered', 'partially_received'].includes(pr.status || '')
+      )
+
+      const upcomingPRs = activePRs.filter((pr) => {
+        const date = parseDateOnly(getPrExpectedDate(pr))
+        if (!date) return false
+        return date >= today && date <= weekEnd
+      })
+
+      if (upcomingPRs.length === 0) {
+        setIncomingPrGuide([])
+        return
+      }
+
+      const details = await Promise.all(
+        upcomingPRs.map(async (pr) => {
+          const detail = await api.get(`/prs/${pr.id}`)
+          const prData = (detail?.success ? detail.data : pr) as PRLike
+          const rawItems = Array.isArray(prData?.items) ? prData.items : []
+
+          const items = rawItems
+            .map((item) => {
+              const requestedQuantity = toFiniteNumber(item?.requested_quantity ?? item?.quantity ?? 0)
+              const receivedQuantity = toFiniteNumber(item?.received_quantity ?? 0)
+              const pendingQuantity = toFiniteNumber(item?.pending_quantity ?? item?.remaining_quantity, NaN)
+              const remainingQuantity = Number.isFinite(pendingQuantity)
+                ? Math.max(pendingQuantity, 0)
+                : Math.max(requestedQuantity - receivedQuantity, 0)
+
+              return {
+                itemName: getPrItemName(item),
+                sku: getPrItemSku(item),
+                remainingQuantity,
+              }
+            })
+            .filter((item: PRGuideItem) => item.remainingQuantity > 0)
+
+          return {
+            id: pr.id,
+            prNumber: prData?.pr_number || `PR-${pr.id}`,
+            expectedDate: getPrExpectedDate(prData) || '',
+            status: prData?.status || pr?.status || 'ordered',
+            items,
+          } satisfies PRGuideEntry
+        })
+      )
+
+      const normalizedGuide = details
+        .filter((pr) => pr.expectedDate && pr.items.length > 0)
+        .sort((a, b) => {
+          const left = parseDateOnly(a.expectedDate)?.getTime() || 0
+          const right = parseDateOnly(b.expectedDate)?.getTime() || 0
+          return left - right
+        })
+
+      setIncomingPrGuide(normalizedGuide)
+    } catch (error) {
+      console.error('Error fetching incoming PR guide:', error)
+      setIncomingPrGuide([])
+    } finally {
+      setIsLoadingPrGuide(false)
+    }
   }
 
-  const handleSort = (column: 'item' | 'quantity' | 'time') => {
-    if (sortColumn === column) {
-      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
-    } else {
-      setSortColumn(column)
-      setSortDirection('asc')
-    }
-  }
+  const filteredTransactions = useMemo(() => {
+    const keyword = filterText.trim().toLowerCase()
+    const filtered = keyword
+      ? transactions.filter((txn) => {
+          const item = items.find(i => i.id === txn.item_id)
+          return (
+            getItemName(item).toLowerCase().includes(keyword) ||
+            getItemSku(item).toLowerCase().includes(keyword) ||
+            (txn.notes || '').toLowerCase().includes(keyword)
+          )
+        })
+      : transactions
 
-  const filteredAndSortedTransactions = useMemo(() => {
-    let filtered = transactions
-
-    // Filter
-    if (filterText) {
-      filtered = filtered.filter(txn => {
-        const item = items.find(i => i.id === txn.item_id)
-        return (
-          getItemName(item).toLowerCase().includes(filterText.toLowerCase()) ||
-          getItemSku(item).toLowerCase().includes(filterText.toLowerCase()) ||
-          txn.notes?.toLowerCase().includes(filterText.toLowerCase())
-        )
-      })
-    }
-
-    // Sort
-    if (sortColumn) {
-      filtered = [...filtered].sort((a, b) => {
-        let aValue: any, bValue: any
-
-        if (sortColumn === 'item') {
-          const aItem = items.find(i => i.id === a.item_id)
-          const bItem = items.find(i => i.id === b.item_id)
-          aValue = getItemName(aItem)
-          bValue = getItemName(bItem)
-        } else if (sortColumn === 'quantity') {
-          aValue = a.quantity
-          bValue = b.quantity
-        } else if (sortColumn === 'time') {
-          aValue = new Date(a.created_at).getTime()
-          bValue = new Date(b.created_at).getTime()
-        }
-
-        if (sortDirection === 'asc') {
-          return aValue > bValue ? 1 : -1
-        } else {
-          return aValue < bValue ? 1 : -1
-        }
-      })
-    }
-
-    return filtered.slice(0, 10)
-  }, [transactions, items, filterText, sortColumn, sortDirection])
+    return [...filtered].sort((a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    )
+  }, [transactions, items, filterText])
 
   const handleOpenDialog = () => {
     setShowReceiveDialog(true)
@@ -168,252 +329,627 @@ export function ReceiveItems() {
     getItemSku(item).toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  // Generate monthly data for charts (last 6 months)
-  const generateMonthlyData = (transactions: api.Transaction[]) => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
-    return months.map((month, index) => ({
-      month,
-      value: Math.floor(Math.random() * 20) + 5 // Mock data - replace with real data
-    }))
+  const openPrReceiveDialog = async (pr: PRGuideEntry) => {
+    try {
+      setIsLoadingPrReceiveDetail(true)
+      setSelectedPrForReceive(pr)
+      setPrReceivePoNumber('')
+      setPrReceiveNotes('')
+      setPrReceiveDate(new Date().toISOString().split('T')[0])
+
+      const response = await api.get(`/prs/${pr.id}`)
+      if (!response?.success || !response.data) {
+        toast.error('Failed to load PR details')
+        return
+      }
+
+      const prData = response.data as PRLike
+      const rawItems = Array.isArray(prData.items) ? prData.items : []
+      const mappedItems = rawItems
+        .map((item) => {
+          const prItemId = toFiniteNumber((item as { id?: number })?.id, 0)
+          const requestedQuantity = toFiniteNumber(item?.requested_quantity ?? item?.quantity ?? 0)
+          const receivedQuantity = toFiniteNumber(item?.received_quantity ?? 0)
+          const pendingQuantity = toFiniteNumber(item?.pending_quantity ?? item?.remaining_quantity, Number.NaN)
+          const remainingQuantity = Number.isFinite(pendingQuantity)
+            ? Math.max(pendingQuantity, 0)
+            : Math.max(requestedQuantity - receivedQuantity, 0)
+
+          return {
+            pr_item_id: prItemId,
+            item_name: getPrItemName(item),
+            sku: getPrItemSku(item),
+            requested_quantity: requestedQuantity,
+            already_received_quantity: receivedQuantity,
+            remaining_quantity: remainingQuantity,
+            receive_quantity: remainingQuantity,
+          } satisfies PRReceiveDialogItem
+        })
+        .filter((item) => item.pr_item_id > 0 && item.remaining_quantity > 0)
+
+      if (mappedItems.length === 0) {
+        toast.info('All items in this PR are already received')
+        return
+      }
+
+      setPrReceiveItems(mappedItems)
+      setShowPrReceiveDialog(true)
+    } catch (error) {
+      console.error('Error opening PR receive dialog:', error)
+      toast.error('Failed to prepare receive form')
+    } finally {
+      setIsLoadingPrReceiveDetail(false)
+    }
   }
 
-  const receiptChartData = generateMonthlyData(transactions)
-  const itemsChartData = generateMonthlyData(transactions)
-  const stockChartData = generateMonthlyData(transactions)
+  const updatePrReceiveQuantity = (prItemId: number, value: string) => {
+    const parsed = Number.parseInt(value, 10)
+    const nextQuantity = Number.isNaN(parsed) ? 0 : parsed
+
+    setPrReceiveItems((prev) =>
+      prev.map((item) =>
+        item.pr_item_id === prItemId
+          ? {
+              ...item,
+              receive_quantity: Math.max(0, Math.min(item.remaining_quantity, nextQuantity)),
+            }
+          : item
+      )
+    )
+  }
+
+  const handleConfirmPrReceive = async () => {
+    if (!selectedPrForReceive) return
+    if (!prReceiveDate) {
+      toast.error('Receive date is required')
+      return
+    }
+
+    const lines = prReceiveItems
+      .filter((item) => item.receive_quantity > 0)
+      .map((item) => ({
+        pr_item_id: item.pr_item_id,
+        received_quantity: item.receive_quantity,
+      }))
+
+    if (lines.length === 0) {
+      toast.error('Please enter receive quantity for at least one item')
+      return
+    }
+
+    try {
+      setIsSubmittingPrReceive(true)
+      const response = await api.post(`/prs/${selectedPrForReceive.id}/receive`, {
+        po_number: prReceivePoNumber.trim() || undefined,
+        received_date: prReceiveDate,
+        notes: prReceiveNotes.trim() || undefined,
+        items: lines,
+      })
+
+      if (!response?.success) {
+        toast.error(response?.error || 'Failed to receive items')
+        return
+      }
+
+      toast.success('PR receipt saved')
+      setShowPrReceiveDialog(false)
+      setSelectedPrForReceive(null)
+      setPrReceiveItems([])
+      await fetchIncomingPRGuide()
+    } catch (error) {
+      console.error('Error submitting PR receive:', error)
+      toast.error('Failed to receive items')
+    } finally {
+      setIsSubmittingPrReceive(false)
+    }
+  }
+
+  const openMoveEtaDialog = (pr: PRGuideEntry) => {
+    setSelectedPrForEta(pr)
+    setEtaDate(toInputDateValue(pr.expectedDate) || new Date().toISOString().split('T')[0])
+    setEtaReason('')
+    setShowMoveEtaDialog(true)
+  }
+
+  const handleMoveEta = async () => {
+    if (!selectedPrForEta) return
+    if (!etaDate) {
+      toast.error('Please select a new ETA date')
+      return
+    }
+
+    try {
+      setIsSubmittingMoveEta(true)
+      const response = await api.post(`/prs/${selectedPrForEta.id}/eta`, {
+        required_date: etaDate,
+        reason: etaReason.trim() || undefined,
+      })
+
+      if (!response?.success) {
+        toast.error(response?.error || 'Failed to update ETA')
+        return
+      }
+
+      toast.success(`ETA updated for ${selectedPrForEta.prNumber}`)
+      setShowMoveEtaDialog(false)
+      setSelectedPrForEta(null)
+      await fetchIncomingPRGuide()
+    } catch (error) {
+      console.error('Error moving ETA:', error)
+      toast.error('Failed to update ETA')
+    } finally {
+      setIsSubmittingMoveEta(false)
+    }
+  }
+
+  const totalPrReceiveQuantity = useMemo(
+    () => prReceiveItems.reduce((sum, item) => sum + item.receive_quantity, 0),
+    [prReceiveItems]
+  )
+
+  const todayPrGuide = useMemo(() => {
+    const today = startOfDay(new Date())
+    return incomingPrGuide.filter((pr) => {
+      const expected = parseDateOnly(pr.expectedDate)
+      return !!expected && expected.getTime() === today.getTime()
+    })
+  }, [incomingPrGuide])
+
+  const weekPrGuide = useMemo(() => {
+    const today = startOfDay(new Date())
+    const weekEnd = addDays(today, 6)
+    return incomingPrGuide.filter((pr) => {
+      const expected = parseDateOnly(pr.expectedDate)
+      return !!expected && expected > today && expected <= weekEnd
+    })
+  }, [incomingPrGuide])
+
+  const filteredTodayPrGuide = useMemo(() => {
+    const keyword = todayPrFilterText.trim().toLowerCase()
+    if (!keyword) return todayPrGuide
+
+    return todayPrGuide.filter((pr) => {
+      if (pr.prNumber.toLowerCase().includes(keyword)) return true
+      if (pr.status.toLowerCase().includes(keyword)) return true
+      return pr.items.some((item) =>
+        item.itemName.toLowerCase().includes(keyword) || item.sku.toLowerCase().includes(keyword)
+      )
+    })
+  }, [todayPrGuide, todayPrFilterText])
+
+  const filteredWeekPrGuide = useMemo(() => {
+    const keyword = weeklyPrFilterText.trim().toLowerCase()
+    if (!keyword) return weekPrGuide
+
+    return weekPrGuide.filter((pr) => {
+      if (pr.prNumber.toLowerCase().includes(keyword)) return true
+      if (pr.status.toLowerCase().includes(keyword)) return true
+      return pr.items.some((item) =>
+        item.itemName.toLowerCase().includes(keyword) || item.sku.toLowerCase().includes(keyword)
+      )
+    })
+  }, [weekPrGuide, weeklyPrFilterText])
+
+  const todaySkuCount = filteredTodayPrGuide.reduce((sum, pr) => sum + pr.items.length, 0)
+  const weekSkuCount = filteredWeekPrGuide.reduce((sum, pr) => sum + pr.items.length, 0)
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-3">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0 }}
-        >
-          <Card className="border-2 border-blue-500/20 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Today's Receipts</CardTitle>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
-                      <LineChart data={receiptChartData}>
-                        <YAxis hide domain={['dataMin', 'dataMax']} />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#3b82f6"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                    <PackagePlus className="h-4 w-4 text-blue-500" />
+     <div className="h-[calc(100dvh-8rem)] min-h-0 overflow-hidden">
+      <div className="grid h-full min-h-0 gap-4 overflow-hidden lg:grid-cols-3 lg:grid-rows-1">
+        <Card className="flex h-full min-h-0 flex-col overflow-hidden border-blue-200/60 bg-gradient-to-b from-blue-50/40 to-background dark:border-blue-900/50 dark:from-blue-950/30 dark:to-background">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CalendarClock className="h-4 w-4 text-blue-600 dark:text-blue-300" />
+              Today PR
+            </CardTitle>
+            <CardDescription>{filteredTodayPrGuide.length} PR / {todaySkuCount} items</CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col pt-0">
+            {isLoadingPrGuide ? (
+              <TableLoadingSkeleton />
+            ) : (
+              <>
+                <div className="mb-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-blue-500/80 dark:text-blue-300/80" />
+                    <Input
+                      placeholder="Search PR number, item, or SKU..."
+                      value={todayPrFilterText}
+                      onChange={(e) => setTodayPrFilterText(e.target.value)}
+                      className="border-blue-200 bg-white/70 pl-10 dark:border-blue-700 dark:bg-blue-950/30"
+                    />
                   </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-2xl font-bold">{transactions.length}</div>
-            </CardContent>
-          </Card>
-        </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card className="border-2 border-purple-500/20 bg-gradient-to-br from-purple-50 to-white dark:from-purple-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Items</CardTitle>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
-                      <LineChart data={itemsChartData}>
-                        <YAxis hide domain={['dataMin', 'dataMax']} />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#a855f7"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                {filteredTodayPrGuide.length === 0 ? (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    {todayPrFilterText ? 'No matching PR for today' : 'No incoming PR for today'}
                   </div>
-                  <div className="h-8 w-8 rounded-full bg-purple-500/10 flex items-center justify-center">
-                    <Package className="h-4 w-4 text-purple-500" />
+                ) : (
+                  <div className="min-h-0 flex-1 space-y-2 overflow-y-scroll pr-2 [scrollbar-gutter:stable]">
+                    {filteredTodayPrGuide.map((pr, index) => (
+                      <motion.div
+                        key={pr.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.04 }}
+                        className="rounded-lg border border-blue-200/70 bg-blue-50/70 p-3 dark:border-blue-800/70 dark:bg-blue-950/45"
+                      >
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">{pr.prNumber}</p>
+                          <Badge variant="outline" className="border-blue-300 bg-white/70 text-[10px] text-blue-800 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-100">
+                            {pr.status}
+                          </Badge>
+                        </div>
+                        <p className="mb-2 text-[11px] text-blue-700 dark:text-blue-300">
+                          ETA {parseDateOnly(pr.expectedDate)?.toLocaleDateString('en-US') || '-'}
+                        </p>
+                        <div className="space-y-1">
+                          {pr.items.map((item) => (
+                            <div
+                              key={`${pr.id}-${item.sku}-${item.itemName}`}
+                              className="text-xs text-blue-950/90 dark:text-blue-100/90"
+                            >
+                              {item.itemName} ({item.sku}) x {item.remainingQuantity}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            className="h-7 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400"
+                            onClick={() => openPrReceiveDialog(pr)}
+                            disabled={isLoadingPrReceiveDetail}
+                          >
+                            Receive
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 border-blue-300 text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-100 dark:hover:bg-blue-900/40"
+                            onClick={() => openMoveEtaDialog(pr)}
+                          >
+                            <CalendarDays className="mr-1 h-3.5 w-3.5" />
+                            Change ETA
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-2xl font-bold">{items.length}</div>
-            </CardContent>
-          </Card>
-        </motion.div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <Card className="border-2 border-green-500/20 bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Stock</CardTitle>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
-                      <LineChart data={stockChartData}>
-                        <YAxis hide domain={['dataMin', 'dataMax']} />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#22c55e"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
-                    <Package className="h-4 w-4 text-green-500" />
+        <Card className="flex h-full min-h-0 flex-col overflow-hidden border-sky-200/60 bg-gradient-to-b from-sky-50/40 to-background dark:border-sky-900/50 dark:from-sky-950/30 dark:to-background">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <CalendarClock className="h-4 w-4 text-sky-600 dark:text-sky-300" />
+              Weekly PR
+            </CardTitle>
+            <CardDescription>{filteredWeekPrGuide.length} PR / {weekSkuCount} items</CardDescription>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col pt-0">
+            {isLoadingPrGuide ? (
+              <TableLoadingSkeleton />
+            ) : (
+              <>
+                <div className="mb-3">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-sky-500/80 dark:text-sky-300/80" />
+                    <Input
+                      placeholder="Search PR number, item, or SKU..."
+                      value={weeklyPrFilterText}
+                      onChange={(e) => setWeeklyPrFilterText(e.target.value)}
+                      className="border-sky-200 bg-white/70 pl-10 dark:border-sky-700 dark:bg-sky-950/30"
+                    />
                   </div>
                 </div>
+
+                {filteredWeekPrGuide.length === 0 ? (
+                  <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                    {weeklyPrFilterText ? 'No matching PR for this week' : 'No incoming PR this week'}
+                  </div>
+                ) : (
+                  <div className="min-h-0 flex-1 space-y-2 overflow-y-scroll pr-2 [scrollbar-gutter:stable]">
+                    {filteredWeekPrGuide.map((pr, index) => (
+                      <motion.div
+                        key={pr.id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.04 }}
+                        className="rounded-lg border border-sky-200/70 bg-sky-50/70 p-3 dark:border-sky-800/70 dark:bg-sky-950/45"
+                      >
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">{pr.prNumber}</p>
+                          <Badge variant="outline" className="border-sky-300 bg-white/70 text-[10px] text-sky-800 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-100">
+                            {pr.status}
+                          </Badge>
+                        </div>
+                        <p className="mb-2 text-[11px] text-sky-700 dark:text-sky-300">
+                          ETA {parseDateOnly(pr.expectedDate)?.toLocaleDateString('en-US') || '-'}
+                        </p>
+                        <div className="space-y-1">
+                          {pr.items.map((item) => (
+                            <div
+                              key={`${pr.id}-${item.sku}-${item.itemName}`}
+                              className="text-xs text-sky-950/90 dark:text-sky-100/90"
+                            >
+                              {item.itemName} ({item.sku}) x {item.remainingQuantity}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3 flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            className="h-7 bg-sky-600 text-white hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-400"
+                            onClick={() => openPrReceiveDialog(pr)}
+                            disabled={isLoadingPrReceiveDetail}
+                          >
+                            Receive
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 border-sky-300 text-sky-800 hover:bg-sky-100 dark:border-sky-700 dark:text-sky-100 dark:hover:bg-sky-900/40"
+                            onClick={() => openMoveEtaDialog(pr)}
+                          >
+                            <CalendarDays className="mr-1 h-3.5 w-3.5" />
+                            Change ETA
+                          </Button>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="flex h-full min-h-0 flex-col overflow-hidden">
+          <CardHeader className="pb-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <History className="h-4 w-4" />
+                  Recent Receive
+                </CardTitle>
+                <CardDescription>List view with filters</CardDescription>
               </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-2xl font-bold text-green-600">
-                {items.reduce((sum, item) => sum + item.quantity, 0)}
+              <Button onClick={handleOpenDialog} size="sm">
+                <PackagePlus className="mr-2 h-4 w-4" />
+                Quick Receive
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="flex min-h-0 flex-1 flex-col pt-0">
+            <div className="mb-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Filter by item name, SKU, or notes..."
+                  value={filterText}
+                  onChange={(e) => setFilterText(e.target.value)}
+                  className="pl-10"
+                />
               </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+            </div>
+
+            {isLoading ? (
+              <TableLoadingSkeleton />
+            ) : filteredTransactions.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                {filterText ? 'No matching transactions found' : 'No receive transactions yet'}
+              </div>
+            ) : (
+              <div className="h-full min-h-0 space-y-2 overflow-y-scroll pr-2 [scrollbar-gutter:stable]">
+                {filteredTransactions.map((txn, index) => {
+                  const fallbackItem = items.find(i => i.id === txn.item_id)
+                  const itemName = txn.item_name || getItemName(fallbackItem)
+                  const itemSku = txn.sku || getItemSku(fallbackItem)
+
+                  return (
+                    <motion.div
+                      key={txn.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.02 }}
+                      className="rounded-lg border border-border/70 bg-card p-3 dark:border-slate-700 dark:bg-slate-900/40"
+                    >
+                      <div className="mb-2 flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium">{itemName}</p>
+                          <p className="text-xs text-muted-foreground">SKU: {itemSku}</p>
+                        </div>
+                        <Badge variant="default" className="bg-green-500">
+                          +{txn.quantity}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{txn.notes || '-'}</p>
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {new Date(txn.created_at).toLocaleString()}
+                      </p>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" />
-                Recent Receive Transactions
-              </CardTitle>
-              <CardDescription>Last 10 receive transactions</CardDescription>
+      <Dialog
+        open={showPrReceiveDialog}
+        onOpenChange={(open) => {
+          setShowPrReceiveDialog(open)
+          if (!open) {
+            setSelectedPrForReceive(null)
+            setPrReceiveItems([])
+          }
+        }}
+      >
+        <DialogContent className="max-h-[85vh] max-w-3xl overflow-hidden">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <PackagePlus className="h-5 w-5" />
+              Receive PR Items
+            </DialogTitle>
+            <DialogDescription>
+              {selectedPrForReceive
+                ? `PR ${selectedPrForReceive.prNumber} - confirm quantities received today`
+                : 'Select quantities to receive from this PR'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingPrReceiveDetail ? (
+            <div className="py-6">
+              <TableLoadingSkeleton />
             </div>
-            <Button onClick={handleOpenDialog} size="lg">
-              <PackagePlus className="mr-2 h-5 w-5" />
-              Quick Receive
+          ) : (
+            <div className="flex max-h-[60vh] min-h-0 flex-col gap-4 overflow-hidden">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="pr-po-number">Supplier PO Number (Optional)</Label>
+                  <Input
+                    id="pr-po-number"
+                    placeholder="PO-2026-0001"
+                    value={prReceivePoNumber}
+                    onChange={(e) => setPrReceivePoNumber(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pr-receive-date">Receive Date *</Label>
+                  <Input
+                    id="pr-receive-date"
+                    type="date"
+                    value={prReceiveDate}
+                    onChange={(e) => setPrReceiveDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pr-receive-notes">Receive Notes (Optional)</Label>
+                <Textarea
+                  id="pr-receive-notes"
+                  placeholder="Additional notes for this receipt..."
+                  value={prReceiveNotes}
+                  onChange={(e) => setPrReceiveNotes(e.target.value)}
+                  className="min-h-[72px]"
+                />
+              </div>
+
+              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+                {prReceiveItems.map((item) => (
+                  <div
+                    key={item.pr_item_id}
+                    className="rounded-lg border border-border/70 bg-card p-3 dark:border-slate-700 dark:bg-slate-900/40"
+                  >
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium">{item.item_name}</p>
+                        <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
+                      </div>
+                      <Badge variant="outline">
+                        Remaining {item.remaining_quantity}
+                      </Badge>
+                    </div>
+                    <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                      <p>Requested: {item.requested_quantity}</p>
+                      <p>Already received: {item.already_received_quantity}</p>
+                    </div>
+                    <div className="mt-3 space-y-1">
+                      <Label htmlFor={`receive-qty-${item.pr_item_id}`}>Receive Quantity</Label>
+                      <Input
+                        id={`receive-qty-${item.pr_item_id}`}
+                        type="number"
+                        min={0}
+                        max={item.remaining_quantity}
+                        value={item.receive_quantity}
+                        onChange={(e) => updatePrReceiveQuantity(item.pr_item_id, e.target.value)}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900/40">
+                {prReceiveItems.length} items selected / Total receive qty {totalPrReceiveQuantity}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPrReceiveDialog(false)}>
+              Cancel
             </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Button
+              onClick={handleConfirmPrReceive}
+              disabled={isLoadingPrReceiveDetail || isSubmittingPrReceive || prReceiveItems.length === 0}
+            >
+              <PackagePlus className="mr-2 h-4 w-4" />
+              {isSubmittingPrReceive ? 'Saving...' : 'Confirm Receive'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={showMoveEtaDialog}
+        onOpenChange={(open) => {
+          setShowMoveEtaDialog(open)
+          if (!open) {
+            setSelectedPrForEta(null)
+            setEtaDate('')
+            setEtaReason('')
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5" />
+              Change ETA
+            </DialogTitle>
+            <DialogDescription>
+              {selectedPrForEta ? `Change ETA for ${selectedPrForEta.prNumber}` : 'Change PR ETA'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-eta-date">New ETA Date *</Label>
               <Input
-                placeholder="Filter by item name, SKU, or notes..."
-                value={filterText}
-                onChange={(e) => setFilterText(e.target.value)}
-                className="pl-10"
+                id="new-eta-date"
+                type="date"
+                value={etaDate}
+                onChange={(e) => setEtaDate(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="eta-reason">Reason (Optional)</Label>
+              <Textarea
+                id="eta-reason"
+                placeholder="Supplier delayed shipment, purchasing updated ETA, etc."
+                value={etaReason}
+                onChange={(e) => setEtaReason(e.target.value)}
+                className="min-h-[100px]"
               />
             </div>
           </div>
 
-          {isLoading ? (
-            <TableLoadingSkeleton />
-          ) : filteredAndSortedTransactions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              {filterText ? 'No matching transactions found' : 'No receive transactions yet'}
-            </div>
-          ) : (
-            <div className="relative w-full overflow-auto">
-              <table className="w-full caption-bottom text-sm">
-                <thead className="[&_tr]:border-b">
-                  <tr className="border-b transition-colors">
-                    <th
-                      className="h-12 px-4 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:text-foreground"
-                      onClick={() => handleSort('item')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Item
-                        {sortColumn === 'item' && (
-                          sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                        )}
-                        {sortColumn !== 'item' && <ArrowUpDown className="h-4 w-4 opacity-50" />}
-                      </div>
-                    </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">SKU</th>
-                    <th
-                      className="h-12 px-4 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:text-foreground"
-                      onClick={() => handleSort('quantity')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Quantity
-                        {sortColumn === 'quantity' && (
-                          sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                        )}
-                        {sortColumn !== 'quantity' && <ArrowUpDown className="h-4 w-4 opacity-50" />}
-                      </div>
-                    </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Notes</th>
-                    <th
-                      className="h-12 px-4 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:text-foreground"
-                      onClick={() => handleSort('time')}
-                    >
-                      <div className="flex items-center gap-2">
-                        Time
-                        {sortColumn === 'time' && (
-                          sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />
-                        )}
-                        {sortColumn !== 'time' && <ArrowUpDown className="h-4 w-4 opacity-50" />}
-                      </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="[&_tr:last-child]:border-0">
-                  {filteredAndSortedTransactions.map((txn, index) => {
-                    // Use item_name and sku directly from transaction (returned by API)
-                    const itemName = txn.item_name || 'Unknown'
-                    const itemSku = txn.sku || 'N/A'
-                    return (
-                      <motion.tr
-                        key={txn.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.05 }}
-                        className="border-b transition-colors hover:bg-muted/50"
-                      >
-                        <td className="p-4 align-middle font-medium">
-                          {itemName}
-                        </td>
-                        <td className="p-4 align-middle">
-                          <code className="rounded bg-muted px-2 py-1 text-xs">
-                            {itemSku}
-                          </code>
-                        </td>
-                        <td className="p-4 align-middle">
-                          <Badge variant="default" className="bg-green-500">{txn.quantity}</Badge>
-                        </td>
-                        <td className="p-4 align-middle text-sm text-muted-foreground">
-                          {txn.notes || '-'}
-                        </td>
-                        <td className="p-4 align-middle text-sm text-muted-foreground">
-                          {new Date(txn.created_at).toLocaleString()}
-                        </td>
-                      </motion.tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowMoveEtaDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleMoveEta} disabled={isSubmittingMoveEta || !etaDate}>
+              {isSubmittingMoveEta ? 'Changing...' : 'Change ETA'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showReceiveDialog} onOpenChange={setShowReceiveDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">

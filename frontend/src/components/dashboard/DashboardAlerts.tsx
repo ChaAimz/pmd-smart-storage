@@ -1,24 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { toast } from 'sonner';
 import * as api from '@/services/api';
-import { 
-  Package, 
-  AlertTriangle, 
-  CheckCircle, 
-  Clock, 
-  ShoppingCart 
-} from 'lucide-react';
-
-interface Alert {
-  type: 'delivery' | 'overdue' | 'approval' | 'low_stock';
-  title: string;
-  message: string;
-  data: any;
-}
 
 export function DashboardAlerts() {
-  const [lastChecked, setLastChecked] = useState<Date>(new Date());
-
   const checkAlerts = async () => {
     try {
       const response = await api.get('/dashboard/alerts');
@@ -81,8 +65,6 @@ export function DashboardAlerts() {
           }
         );
       }
-
-      setLastChecked(new Date());
     } catch (error) {
       console.error('Error checking alerts:', error);
     }

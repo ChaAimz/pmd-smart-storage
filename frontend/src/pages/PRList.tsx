@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as api from '@/services/api';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   FileText, 
@@ -51,7 +51,7 @@ export function PRList() {
     }
   };
 
-  const exportToExcel = async (prId: number, prNumber: string) => {
+  const exportToExcel = async (prId: number) => {
     try {
       const response = await api.get(`/prs/${prId}/export`);
       if (!response.success) {
@@ -259,7 +259,7 @@ export function PRList() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => exportToExcel(pr.id, pr.pr_number)}
+                        onClick={() => exportToExcel(pr.id)}
                       >
                         <Download className="w-4 h-4 mr-1" />
                         Export

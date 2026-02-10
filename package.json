@@ -1,0 +1,12 @@
+{
+  "name": "smart-storage-device",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev:test": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test/start-local-dev.ps1",
+    "dev:test:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test/start-local-dev.ps1 -BackendDev",
+    "dev:test:no-browser": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test/start-local-dev.ps1 -OpenBrowser:$false",
+    "dev:test:firewall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test/start-local-dev.ps1 -EnsureFirewall",
+    "dev:firewall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check/allow-local-dev-firewall.ps1"
+  }
+}
