@@ -1,19 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as api from '@/services/api';
 
 // Helper functions to handle both old and new API response formats
-const getItemName = (item: any): string => {
+interface ItemLike {
+  name?: string;
+  master_name?: string;
+  local_name?: string;
+  sku?: string;
+  master_sku?: string;
+  local_sku?: string;
+}
+
+const getItemName = (item: ItemLike): string => {
   return item?.name || item?.master_name || item?.local_name || 'Unknown'
 }
 
-const getItemSku = (item: any): string => {
+const getItemSku = (item: ItemLike): string => {
   return item?.sku || item?.master_sku || item?.local_sku || 'N/A'
 }
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { H1, Lead } from '@/components/ui/typography';
 import { 
   FileText, 
   ArrowLeft,
@@ -57,42 +67,65 @@ interface PR {
   supplier_name?: string;
 }
 
+interface ExportItemRow {
+  sku: string;
+  item_name?: string;
+  name?: string;
+  unit: string;
+  quantity: number;
+  estimated_unit_cost: number;
+  estimated_total: number;
+}
+
+interface PRExportData {
+  pr_number: string;
+  pr_date: string;
+  required_date: string;
+  priority: string;
+  requester_name: string;
+  department_name: string;
+  store_name: string;
+  notes?: string;
+  total_amount: number;
+  items: ExportItemRow[];
+}
+
 export function PRDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [pr, setPr] = useState<PR | null>(null);
 
-  useEffect(() => {
-    fetchPR();
-  }, [id]);
-
-  const fetchPR = async () => {
+  const fetchPR = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/prs/${id}`);
+      const response = await api.get<PR>(`/prs/${id}`);
       if (response.success) {
-        setPr(response.data);
+        setPr(response.data || null);
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch PR');
       navigate('/prs');
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    void fetchPR();
+  }, [fetchPR]);
 
   const exportToExcel = async () => {
     if (!pr) return;
     try {
-      const response = await api.get(`/prs/${pr.id}/export`);
+      const response = await api.get<PRExportData>(`/prs/${pr.id}/export`);
       if (!response.success) {
         toast.error('Failed to export');
         return;
       }
 
       const XLSX = await import('xlsx');
-      const data = response.data;
+      const data = response.data as PRExportData;
       
       const ws = XLSX.utils.json_to_sheet([
         ['Purchase Requisition'],
@@ -110,7 +143,7 @@ export function PRDetail() {
       ]);
 
       const itemsHeader = ['No.', 'Code/SKU', 'Item', 'Unit', 'Quantity', 'Est. Unit Price', 'Total'];
-      const itemsData = data.items.map((item: any, idx: number) => [
+      const itemsData = data.items.map((item: ExportItemRow, idx: number) => [
         idx + 1,
         getItemSku(item),
         item.item_name || getItemName(item),
@@ -152,7 +185,7 @@ export function PRDetail() {
       XLSX.utils.book_append_sheet(wb, ws, 'PR');
       XLSX.writeFile(wb, `PR-${data.pr_number}.xlsx`);
       toast.success('Excel export successful');
-    } catch (error) {
+    } catch {
       toast.error('Export failed');
     }
   };
@@ -227,8 +260,8 @@ export function PRDetail() {
           Back
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">PR Details</h1>
-          <p className="text-gray-500">{pr.pr_number}</p>
+          <H1 className="text-3xl">PR Details</H1>
+          <Lead>{pr.pr_number}</Lead>
         </div>
       </div>
 

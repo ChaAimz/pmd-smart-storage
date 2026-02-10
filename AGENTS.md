@@ -386,6 +386,14 @@ Replace `YOUR_PC_IP` with your PC's actual IP address.
      - header: `sticky top-0 z-10 bg-muted/50 backdrop-blur-xl` with visible `border-b border-border`
      - body rows: `border-b border-border hover:bg-muted/50`
    - Prefer shared `frontend/src/components/ui/table.tsx` primitives; if raw `<table>` is used, mirror the same classes.
+   - `Pick Items` and `Adjust Stock` log tables must share one date-filter UX pattern:
+     - default range: last `30 days`
+     - preset group: `30D`, `M`, `3M`, `6M`, `1Y`
+     - custom range via shadcn-style range calendar (popover + calendar)
+   - Typography baseline: prefer shared primitives from `frontend/src/components/ui/typography.tsx` (`H1`, `H2`, `H3`, `Lead`, `Muted`, `Small`) for page/section headers.
+   - Dialog baseline: all dialogs use shadcn base dialog from `frontend/src/components/ui/dialog.tsx`.
+   - Group controls baseline: use shadcn `ButtonGroup` / `ToggleGroup` with contiguous layout (attached segments with consistent border).
+   - Navigation baseline: use shadcn breadcrumb component for page path rendering.
 
 7. **Category Governance (Required)**:
    - Implement category as controlled master data (Settings sub-menu), not ad-hoc text.

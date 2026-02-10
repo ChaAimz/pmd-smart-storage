@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
+type ItemLike = Partial<Pick<api.Item, 'name' | 'master_name' | 'local_name' | 'sku' | 'master_sku' | 'local_sku' | 'category' | 'master_category'>> | undefined
+
 // Helper functions to handle both old and new API response formats
-const getItemName = (item: any): string => {
+const getItemName = (item: ItemLike): string => {
   return item?.name || item?.master_name || item?.local_name || 'Unknown'
 }
 
-const getItemSku = (item: any): string => {
+const getItemSku = (item: ItemLike): string => {
   return item?.sku || item?.master_sku || item?.local_sku || 'N/A'
 }
 
-const getItemCategory = (item: any): string => {
+const getItemCategory = (item: ItemLike): string => {
   return item?.category || item?.master_category || 'Uncategorized'
 }
 import {
@@ -32,6 +34,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { StatusCard } from '@/components/ui/status-card'
+import { H1, Lead } from '@/components/ui/typography'
 
 import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
@@ -217,8 +220,8 @@ export function Dashboard() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Dashboard</h1>
-            <p className="text-muted-foreground">Monitor and manage your inventory</p>
+            <H1 className="text-3xl">Dashboard</H1>
+            <Lead>Monitor and manage your inventory</Lead>
           </div>
         </div>
         <TableLoadingSkeleton rows={8} />
@@ -231,8 +234,8 @@ export function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back! Here's your inventory overview</p>
+          <H1 className="text-3xl">Dashboard</H1>
+          <Lead>Welcome back! Here's your inventory overview</Lead>
         </div>
         <Button
           variant="outline"

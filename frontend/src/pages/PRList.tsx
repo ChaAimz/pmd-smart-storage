@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as api from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { H1, Lead } from '@/components/ui/typography';
 import { 
   FileText, 
   Plus, 
@@ -26,34 +27,56 @@ interface PR {
   estimated_total: number;
 }
 
+interface ExportItemRow {
+  sku: string;
+  item_name: string;
+  unit: string;
+  quantity: number;
+  estimated_unit_cost: number;
+  estimated_total: number;
+}
+
+interface PRExportData {
+  pr_number: string;
+  pr_date: string;
+  required_date: string;
+  priority: string;
+  requester_name: string;
+  department_name: string;
+  store_name: string;
+  notes?: string;
+  total_amount: number;
+  items: ExportItemRow[];
+}
+
 export function PRList() {
   const navigate = useNavigate();
   const [prs, setPrs] = useState<PR[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
 
-  useEffect(() => {
-    fetchPRs();
-  }, [filter]);
-
-  const fetchPRs = async () => {
+  const fetchPRs = useCallback(async () => {
     try {
       setLoading(true);
-      const params = filter !== 'all' ? { status: filter } : {};
-      const response = await api.get('/prs', params);
+      const params = filter !== 'all' ? { status: filter } : undefined;
+      const response = await api.get<PR[]>('/prs', params);
       if (response.success) {
-        setPrs(response.data);
+        setPrs(response.data || []);
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch PRs');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    void fetchPRs();
+  }, [fetchPRs]);
 
   const exportToExcel = async (prId: number) => {
     try {
-      const response = await api.get(`/prs/${prId}/export`);
+      const response = await api.get<PRExportData>(`/prs/${prId}/export`);
       if (!response.success) {
         toast.error('Failed to export');
         return;
@@ -61,7 +84,7 @@ export function PRList() {
 
       // Dynamic import xlsx
       const XLSX = await import('xlsx');
-      const data = response.data;
+      const data = response.data as PRExportData;
       
       // Create worksheet
       const ws = XLSX.utils.json_to_sheet([
@@ -81,7 +104,7 @@ export function PRList() {
 
       // Add items
       const itemsHeader = ['No.', 'Code/SKU', 'Item', 'Unit', 'Quantity', 'Est. Unit Price', 'Total'];
-      const itemsData = data.items.map((item: any, idx: number) => [
+      const itemsData = data.items.map((item: ExportItemRow, idx: number) => [
         idx + 1,
         item.sku,
         item.item_name,
@@ -130,7 +153,7 @@ export function PRList() {
       toast.success('Excel export successful', {
         description: 'Send file to Purchasing now'
       });
-    } catch (error) {
+    } catch {
       toast.error('Export failed');
     }
   };
@@ -176,8 +199,8 @@ export function PRList() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Purchase Requisition (PR)</h1>
-          <p className="text-gray-500 mt-1">Create PR → Export Excel → Send to Purchasing → Receive Items</p>
+          <H1 className="text-3xl">Purchase Requisition (PR)</H1>
+          <Lead className="mt-1">Create PR → Export Excel → Send to Purchasing → Receive Items</Lead>
         </div>
         <Button onClick={() => navigate('/prs/create')}>
           <Plus className="w-4 h-4 mr-2" />

@@ -7,7 +7,7 @@ interface Notification {
   type: string;
   title: string;
   message: string;
-  data: any;
+  data: Record<string, unknown> | null;
   link: string;
   is_read: boolean;
   created_at: string;
@@ -29,8 +29,8 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const fetchUnreadCount = useCallback(async () => {
     try {
-      const response = await api.get('/notifications/unread-count');
-      if (response.success) {
+      const response = await api.get<{ count: number }>('/notifications/unread-count');
+      if (response.success && response.data) {
         setUnreadCount(response.data.count);
       }
     } catch (error) {
@@ -40,9 +40,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const fetchNotifications = useCallback(async () => {
     try {
-      const response = await api.get('/notifications?limit=50');
+      const response = await api.get<Notification[]>('/notifications?limit=50');
       if (response.success) {
-        setNotifications(response.data);
+        setNotifications(response.data || []);
       }
       await fetchUnreadCount();
     } catch (error) {
@@ -78,8 +78,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     if (!token) return;
 
     const eventSource = new EventSource(
-      `${api.API_BASE_URL}/notifications/stream`,
-      { headers: { Authorization: `Bearer ${token}` } } as any
+      `${api.API_BASE_URL}/notifications/stream?token=${encodeURIComponent(token)}`
     );
 
     eventSource.onmessage = (event) => {
@@ -115,9 +114,14 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   // Initial fetch
   useEffect(() => {
-    fetchNotifications();
+    const timer = setTimeout(() => {
+      void fetchNotifications();
+    }, 0);
     const interval = setInterval(fetchUnreadCount, 30000); // Poll every 30s
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timer);
+      clearInterval(interval);
+    };
   }, [fetchNotifications, fetchUnreadCount]);
 
   return (

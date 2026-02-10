@@ -1,11 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { MapPin, Plus, Edit, Grid3x3, Eye, Package } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { H1, Lead } from '@/components/ui/typography'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -24,15 +33,7 @@ interface LocationItem {
   quantity: number
 }
 
-interface Location {
-  id: number
-  code: string
-  zone: string
-  aisle?: string
-  shelf?: string
-  capacity: number
-  occupied: number
-  status: string
+interface Location extends api.Location {
   items?: LocationItem[]
 }
 
@@ -47,11 +48,7 @@ export function ManageLocations() {
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
 
-  useEffect(() => {
-    fetchLocations()
-  }, [])
-
-  async function fetchLocations() {
+  const fetchLocations = useCallback(async () => {
     try {
       const data = await api.getAllLocations()
       setLocations(data)
@@ -59,7 +56,14 @@ export function ManageLocations() {
       console.error('Error fetching locations:', error)
       toast.error('Failed to load locations')
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetchLocations()
+    }, 0)
+    return () => clearTimeout(timer)
+  }, [fetchLocations])
 
   const filteredLocations = locations.filter(
     (loc) => selectedZone === 'All' || loc.zone === selectedZone
@@ -105,10 +109,8 @@ export function ManageLocations() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Manage Locations</h1>
-          <p className="text-muted-foreground">
-            View and manage warehouse storage locations
-          </p>
+          <H1 className="text-3xl">Manage Locations</H1>
+          <Lead>View and manage warehouse storage locations</Lead>
         </div>
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
@@ -127,17 +129,19 @@ export function ManageLocations() {
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="new-zone">Zone</Label>
-                  <select
-                    id="new-zone"
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {zones.map((zone) => (
-                      <option key={zone} value={zone}>
-                        {zone}
-                      </option>
-                    ))}
-                  </select>
+                  <Label>Zone</Label>
+                  <Select defaultValue={zones[0]}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {zones.map((zone) => (
+                        <SelectItem key={zone} value={zone}>
+                          {zone}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="new-aisle">Aisle</Label>
@@ -189,7 +193,7 @@ export function ManageLocations() {
                 </Button>
               ))}
             </div>
-            <div className="flex gap-2">
+            <ButtonGroup className="[&>*]:border-primary/70 [&>*]:bg-primary/5 [&>*]:text-primary [&>*]:hover:bg-primary/10">
               <Button
                 variant={viewMode === 'grid' ? 'default' : 'outline'}
                 size="icon"
@@ -204,7 +208,7 @@ export function ManageLocations() {
               >
                 <Package className="h-4 w-4" />
               </Button>
-            </div>
+            </ButtonGroup>
           </div>
         </CardContent>
       </Card>
@@ -242,7 +246,7 @@ export function ManageLocations() {
             <Card>
               <CardContent className="pt-6">
                 <p className="text-sm font-medium text-muted-foreground">{stat.title}</p>
-                <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
+                <p className={`text-3xl font-semibold ${stat.color}`}>{stat.value}</p>
               </CardContent>
             </Card>
           </motion.div>
@@ -269,7 +273,9 @@ export function ManageLocations() {
                   whileHover={{ scale: 1.1, zIndex: 10 }}
                   className="relative"
                 >
-                  <button
+                  <Button
+                    type="button"
+                    variant="outline"
                     className={`relative h-20 w-full rounded-lg border-2 p-2 text-xs transition-all ${getStatusColor(
                       location.status
                     )}`}
@@ -285,7 +291,7 @@ export function ManageLocations() {
                         {location.items.length}
                       </div>
                     )}
-                  </button>
+                  </Button>
                 </motion.div>
               ))}
             </div>

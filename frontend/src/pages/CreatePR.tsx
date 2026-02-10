@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { H1, Lead } from '@/components/ui/typography';
 import { 
   Trash2, 
   Search,
@@ -32,6 +33,34 @@ interface MasterItem {
   name: string;
   unit: string;
   category: string;
+}
+
+interface PRCreateResponse {
+  id: number;
+  pr_number: string;
+}
+
+interface ExportItemRow {
+  sku: string;
+  item_name: string;
+  unit: string;
+  quantity: number;
+  estimated_price: number;
+  estimated_total: number;
+  notes?: string;
+}
+
+interface PRExportData {
+  pr_number: string;
+  pr_date: string;
+  required_date: string;
+  priority: string;
+  requester: string;
+  department: string;
+  store: string;
+  notes?: string;
+  total_estimated_amount: number;
+  items: ExportItemRow[];
 }
 
 export function CreatePR() {
@@ -67,9 +96,9 @@ export function CreatePR() {
 
     const delay = setTimeout(async () => {
       try {
-        const response = await api.get(`/master-items?search=${searchTerm}`);
+        const response = await api.get<MasterItem[]>(`/master-items?search=${searchTerm}`);
         if (response.success) {
-          setSearchResults(response.data);
+          setSearchResults(response.data || []);
         }
       } catch (error) {
         console.error('Search error:', error);
@@ -103,7 +132,7 @@ export function CreatePR() {
     setSelectedItems(prev => prev.filter((_, i) => i !== index));
   };
 
-  const updateItem = (index: number, field: keyof PRItem, value: any) => {
+  const updateItem = (index: number, field: keyof PRItem, value: PRItem[keyof PRItem]) => {
     setSelectedItems(prev => prev.map((item, i) => 
       i === index ? { ...item, [field]: value } : item
     ));
@@ -129,7 +158,7 @@ export function CreatePR() {
     try {
       setLoading(true);
       
-      const response = await api.post('/prs', {
+      const response = await api.post<PRCreateResponse>('/prs', {
         priority,
         required_date: requiredDate,
         notes,
@@ -142,19 +171,25 @@ export function CreatePR() {
       });
 
       if (response.success) {
+        const created = response.data;
+        if (!created) {
+          toast.error('Failed to create PR');
+          return;
+        }
         toast.success('PR created successfully', {
-          description: `Number: ${response.data.pr_number}`
+          description: `Number: ${created.pr_number}`
         });
         
         // Export Excel อัตโนมัติเพื่อส่งให้จัดซื้อ
-        await exportToExcel(response.data.id);
+        await exportToExcel(created.id);
         
         toast.info('Excel export successful, please send to Purchasing');
         
         navigate('/prs');
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to create PR');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to create PR';
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -162,7 +197,7 @@ export function CreatePR() {
 
   const exportToExcel = async (prId: number) => {
     try {
-      const response = await api.get(`/prs/${prId}/export`);
+      const response = await api.get<PRExportData>(`/prs/${prId}/export`);
       if (!response.success) {
         toast.error('Failed to export');
         return;
@@ -170,7 +205,7 @@ export function CreatePR() {
 
       // Dynamic import xlsx
       const XLSX = await import('xlsx');
-      const data = response.data;
+      const data = response.data as PRExportData;
       
       // Create worksheet
       const ws = XLSX.utils.json_to_sheet([
@@ -189,7 +224,7 @@ export function CreatePR() {
 
       // Add items
       const itemsHeader = ['No.', 'Code/SKU', 'Item', 'Unit', 'Quantity', 'Est. Unit Price', 'Total', 'Notes'];
-      const itemsData = data.items.map((item: any, idx: number) => [
+      const itemsData = data.items.map((item: ExportItemRow, idx: number) => [
         idx + 1,
         item.sku,
         item.item_name,
@@ -238,15 +273,15 @@ export function CreatePR() {
       // Download
       XLSX.writeFile(wb, `PR-${data.pr_number}.xlsx`);
       toast.success('Exported to Excel');
-    } catch (error) {
+    } catch {
       toast.error('Export failed');
     }
   };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Create Purchase Requisition (PR)</h1>
-      <p className="text-gray-500">Create internal PR, then Export Excel to send to Purchasing</p>
+      <H1 className="text-3xl">Create Purchase Requisition (PR)</H1>
+      <Lead>Create internal PR, then Export Excel to send to Purchasing</Lead>
 
       <div className="grid grid-cols-3 gap-6">
         {/* Left: Search & Add Items */}

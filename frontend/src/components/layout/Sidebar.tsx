@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Small } from '@/components/ui/typography'
 
 interface NavItem {
   title: string
@@ -142,9 +143,9 @@ export function Sidebar({
               {/* Section Title */}
               {!isCollapsed && (
                 <div className="mb-2 px-3">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <Small className="text-xs uppercase tracking-wider text-muted-foreground">
                     {section.title}
-                  </h3>
+                  </Small>
                 </div>
               )}
 
@@ -197,7 +198,7 @@ export function Sidebar({
         <div className={cn('mt-auto border-t border-border', isCollapsed ? 'pt-2' : 'pt-4')}>
           <div className={cn('rounded-lg bg-muted/50', isCollapsed ? 'p-2' : 'p-3')}>
             <div className={cn(isCollapsed ? 'flex justify-center' : 'space-y-2')}>
-              {!isCollapsed && <h3 className="text-xs font-semibold">System Status</h3>}
+              {!isCollapsed && <Small className="text-xs">System Status</Small>}
               <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'gap-2')}>
                 <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
                 {!isCollapsed && <span className="text-xs text-muted-foreground">All systems operational</span>}

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
+import { Checkbox } from '@/components/ui/checkbox'
 import { StatusCard } from '@/components/ui/status-card'
 import {
   Dialog,
@@ -37,6 +38,7 @@ import * as api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
+import { H1, Lead } from '@/components/ui/typography'
 
 const COMPACT_PRIMARY_BUTTON_CLASS = 'h-7 px-2.5 text-xs'
 
@@ -208,6 +210,8 @@ export default function InventoryPlanning() {
     sum + (item.reorder_quantity || 0) * (item.unit_cost || 0), 0
   )
   const criticalItems = lowStockItems.filter(item => getUrgencyLevel(item) === 4)
+  const hasVisibleItems = filteredAndSortedItems.length > 0
+  const allVisibleSelected = hasVisibleItems && filteredAndSortedItems.every((item) => selectedItems.includes(item.id))
 
   if (isLoading) {
     return (
@@ -215,8 +219,8 @@ export default function InventoryPlanning() {
         <div className="h-full min-h-0 flex flex-col gap-4 px-2.5 pt-2.5 pb-1.5 lg:px-3.5 lg:pt-3.5 lg:pb-2.5">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold">Inventory Planning</h1>
-              <p className="text-muted-foreground">Monitor stock levels and manage reorder points</p>
+              <H1 className="text-3xl">Inventory Planning</H1>
+              <Lead>Monitor stock levels and manage reorder points</Lead>
             </div>
           </div>
           <Card className="border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
@@ -235,8 +239,8 @@ export default function InventoryPlanning() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Inventory Planning</h1>
-          <p className="text-muted-foreground">Monitor stock levels and manage purchase orders</p>
+          <H1 className="text-3xl">Inventory Planning</H1>
+          <Lead>Monitor stock levels and manage purchase orders</Lead>
         </div>
         <Button
           size="sm"
@@ -366,17 +370,17 @@ export default function InventoryPlanning() {
                       <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
                         <tr className="border-b border-border">
                           <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
-                            <input
-                              type="checkbox"
-                              checked={selectedItems.length === filteredAndSortedItems.length}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedItems(filteredAndSortedItems.map(item => item.id))
+                            <Checkbox
+                              checked={allVisibleSelected}
+                              onCheckedChange={(checked) => {
+                                if (checked === true) {
+                                  setSelectedItems(filteredAndSortedItems.map((item) => item.id))
                                 } else {
                                   setSelectedItems([])
                                 }
                               }}
-                              className="rounded border-gray-300"
+                              disabled={!hasVisibleItems}
+                              aria-label="Select all visible items"
                             />
                           </th>
                           <th
@@ -424,11 +428,10 @@ export default function InventoryPlanning() {
                             className="border-b border-border hover:bg-muted/50 transition-colors"
                           >
                             <td className="p-4">
-                              <input
-                                type="checkbox"
+                              <Checkbox
                                 checked={selectedItems.includes(item.id)}
-                                onChange={() => handleSelectItem(item.id)}
-                                className="rounded border-gray-300"
+                                onCheckedChange={() => handleSelectItem(item.id)}
+                                aria-label={`Select ${item.name}`}
                               />
                             </td>
                             <td className="p-4">

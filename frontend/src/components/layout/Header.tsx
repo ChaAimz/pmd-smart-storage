@@ -4,7 +4,15 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { H3, Muted } from '@/components/ui/typography'
 import { useAuth } from '@/contexts/AuthContext'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,7 +72,8 @@ export function Header({ isSidebarCollapsed, isDesktopSidebar, onSidebarToggle }
   const { user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
-  const departmentLabel = toTitleCase((user as any)?.department || user?.role || 'General')
+  const department = (user as { department?: string } | null)?.department
+  const departmentLabel = toTitleCase(department || user?.role || 'General')
   const currentPageLabel = getCurrentPageLabel(location.pathname)
 
   const handleLogout = () => {
@@ -88,28 +97,36 @@ export function Header({ isSidebarCollapsed, isDesktopSidebar, onSidebarToggle }
             !isDesktopSidebar ? 'px-3' : isSidebarCollapsed ? 'justify-center px-2' : 'gap-4 px-6'
           }`}
         >
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             aria-label="Toggle sidebar"
             onClick={onSidebarToggle}
-            className="flex items-center gap-2 rounded-lg outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="h-auto items-center gap-2 rounded-lg px-0 outline-none transition-opacity hover:bg-transparent hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <Package className="h-6 w-6 text-primary-foreground" />
             </div>
             <div className={!isDesktopSidebar || isSidebarCollapsed ? 'hidden' : ''}>
-              <h1 className="text-xl font-bold">Smart Storage</h1>
-              <p className="text-xs text-muted-foreground">Inventory Management</p>
+              <H3 className="text-xl">Smart Storage</H3>
+              <Muted className="text-xs">Inventory Management</Muted>
             </div>
-          </button>
+          </Button>
         </div>
 
         <div className={`min-w-0 ${isDesktopSidebar ? 'pl-3.5' : 'px-2'}`}>
-          <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">
-            <span className="text-foreground">{departmentLabel}</span>
-            <span className="px-1 text-muted-foreground">/</span>
-            <span className="text-foreground">{currentPageLabel}</span>
-          </p>
+          <Breadcrumb>
+            <BreadcrumbList className="truncate text-xs font-medium sm:text-sm">
+              <BreadcrumbItem className="min-w-0">
+                <BreadcrumbPage className="truncate">{departmentLabel}</BreadcrumbPage>
+              </BreadcrumbItem>
+              <BreadcrumbSeparator>/</BreadcrumbSeparator>
+              <BreadcrumbItem className="min-w-0">
+                <BreadcrumbPage className="truncate">{currentPageLabel}</BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
         </div>
 
         <div className={`flex items-center gap-1.5 ${isDesktopSidebar ? 'pr-6' : 'pr-3 sm:gap-2'}`}>

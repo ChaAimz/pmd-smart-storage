@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Header } from './Header'
 import { Sidebar } from './Sidebar'
 import { RightSidebar } from './RightSidebar'
+import { Button } from '@/components/ui/button'
 
 import { PageProvider, usePageContext } from '@/contexts/PageContext'
 
@@ -40,12 +41,6 @@ function LayoutContent() {
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-
-  useEffect(() => {
-    if (isDesktopSidebar && isCompactDesktop) {
-      setIsSidebarCollapsed(true)
-    }
-  }, [isDesktopSidebar, isCompactDesktop])
 
   const handleSidebarToggle = () => {
     if (!isDesktopSidebar) {
@@ -91,8 +86,9 @@ function LayoutContent() {
         onNavigate={handleSidebarNavigate}
       />
       {!isDesktopSidebar && isMobileSidebarOpen && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           className="fixed inset-0 top-16 z-40 bg-black/35 backdrop-blur-[1px]"
           onClick={() => setIsMobileSidebarOpen(false)}
           aria-label="Close navigation"

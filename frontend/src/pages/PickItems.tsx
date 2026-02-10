@@ -1,13 +1,24 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Search, PackageMinus, ArrowUpDown, ArrowUp, ArrowDown, Package, TrendingDown } from 'lucide-react'
+import { Search, PackageMinus, ArrowUpDown, ArrowUp, ArrowDown, Package, TrendingDown, CalendarDays } from 'lucide-react'
+import { format, subDays, subMonths, subYears, startOfDay, endOfDay } from 'date-fns'
+import type { DateRange } from 'react-day-picker'
+
+interface ItemLike {
+  name?: string
+  master_name?: string
+  local_name?: string
+  sku?: string
+  master_sku?: string
+  local_sku?: string
+}
 
 // Helper functions to handle both old and new API response formats
-const getItemName = (item: any): string => {
+const getItemName = (item: ItemLike | undefined): string => {
   return item?.name || item?.master_name || item?.local_name || 'Unknown'
 }
 
-const getItemSku = (item: any): string => {
+const getItemSku = (item: ItemLike | undefined): string => {
   return item?.sku || item?.master_sku || item?.local_sku || 'N/A'
 }
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -16,6 +27,10 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { StatusCard } from '@/components/ui/status-card'
+import { CalendarRange } from '@/components/ui/calendar-range'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -30,9 +45,14 @@ import * as api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePageContext } from '@/contexts/PageContext'
 
-const COMPACT_PRIMARY_BUTTON_CLASS = 'h-7 px-2.5 text-xs'
-const DIALOG_PRIMARY_BUTTON_CLASS = 'h-9 px-4'
-const DIALOG_OUTLINE_BUTTON_CLASS = 'h-9 px-4'
+type RangePreset = '30D' | 'M' | '3M' | '6M' | '1Y' | 'CUSTOM'
+const RANGE_PRESET_LABELS: Record<Exclude<RangePreset, 'CUSTOM'>, string> = {
+  '30D': '30D',
+  M: 'M',
+  '3M': '3M',
+  '6M': '6M',
+  '1Y': '1Y',
+}
 
 export function PickItems() {
   const [items, setItems] = useState<api.Item[]>([])
@@ -46,6 +66,11 @@ export function PickItems() {
   const [filterText, setFilterText] = useState('')
   const [sortColumn, setSortColumn] = useState<'item' | 'quantity' | 'time' | null>(null)
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc')
+  const [selectedRangePreset, setSelectedRangePreset] = useState<RangePreset>('30D')
+  const [dateRange, setDateRange] = useState<DateRange>({
+    from: subDays(new Date(), 29),
+    to: new Date(),
+  })
 
   const { user } = useAuth()
   const { setPageInfo } = usePageContext()
@@ -88,6 +113,19 @@ export function PickItems() {
   const filteredAndSortedTransactions = useMemo(() => {
     let filtered = transactions
 
+    // Date range filter
+    if (dateRange.from || dateRange.to) {
+      const from = dateRange.from ? startOfDay(dateRange.from) : null
+      const to = dateRange.to ? endOfDay(dateRange.to) : null
+
+      filtered = filtered.filter((txn) => {
+        const createdAt = new Date(txn.created_at)
+        if (from && createdAt < from) return false
+        if (to && createdAt > to) return false
+        return true
+      })
+    }
+
     // Filter
     if (filterText) {
       filtered = filtered.filter(txn => {
@@ -103,7 +141,8 @@ export function PickItems() {
     // Sort
     if (sortColumn) {
       filtered = [...filtered].sort((a, b) => {
-        let aValue: any, bValue: any
+        let aValue: number | string = 0
+        let bValue: number | string = 0
 
         if (sortColumn === 'item') {
           const aItem = items.find(i => i.id === a.item_id)
@@ -126,8 +165,31 @@ export function PickItems() {
       })
     }
 
-    return filtered.slice(0, 10)
-  }, [transactions, items, filterText, sortColumn, sortDirection])
+    return filtered
+  }, [transactions, items, filterText, sortColumn, sortDirection, dateRange])
+
+  const applyPreset = (preset: Exclude<RangePreset, 'CUSTOM'>) => {
+    const now = new Date()
+    let from = subDays(now, 29)
+
+    if (preset === 'M') from = subMonths(now, 1)
+    if (preset === '3M') from = subMonths(now, 3)
+    if (preset === '6M') from = subMonths(now, 6)
+    if (preset === '1Y') from = subYears(now, 1)
+
+    setSelectedRangePreset(preset)
+    setDateRange({ from, to: now })
+  }
+
+  const handleDateRangeChange = (range: DateRange | undefined) => {
+    setSelectedRangePreset('CUSTOM')
+    setDateRange(range || { from: undefined, to: undefined })
+  }
+
+  const rangeLabel =
+    dateRange.from && dateRange.to
+      ? `${format(dateRange.from, 'MMM dd, yyyy')} - ${format(dateRange.to, 'MMM dd, yyyy')}`
+      : 'Select date range'
 
   const handleOpenDialog = () => {
     setShowPickDialog(true)
@@ -228,7 +290,7 @@ export function PickItems() {
       <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <CardHeader className="pb-0" />
         <CardContent className="flex min-h-0 flex-1 flex-col">
-          <div className="mb-4 flex items-center gap-2">
+          <div className="mb-4 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -238,7 +300,42 @@ export function PickItems() {
                 className="pl-10"
               />
             </div>
-            <Button onClick={handleOpenDialog} size="sm" className={`${COMPACT_PRIMARY_BUTTON_CLASS} shrink-0`}>
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={selectedRangePreset === 'CUSTOM' ? undefined : selectedRangePreset}
+              onValueChange={(value) => {
+                if (value) applyPreset(value as Exclude<RangePreset, 'CUSTOM'>)
+              }}
+              className="shrink-0 gap-0 overflow-hidden rounded-xl border border-border bg-background [&>*:not(:first-child)]:rounded-l-none [&>*:not(:first-child)]:border-l [&>*:not(:first-child)]:border-border [&>*:not(:last-child)]:rounded-r-none"
+            >
+              {(['30D', 'M', '3M', '6M', '1Y'] as const).map((preset) => (
+                <ToggleGroupItem
+                  key={preset}
+                  value={preset}
+                  aria-label={`Range ${preset}`}
+                  className="rounded-none border-0 bg-transparent px-3 text-foreground hover:bg-muted/70 focus-visible:ring-ring/40 data-[state=on]:bg-muted data-[state=on]:text-foreground"
+                >
+                  {RANGE_PRESET_LABELS[preset]}
+                </ToggleGroupItem>
+              ))}
+            </ToggleGroup>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button size="sm" variant="outline" className="min-w-[230px] shrink-0 justify-start">
+                  <CalendarDays className="mr-2 h-4 w-4" />
+                  {rangeLabel}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" sideOffset={8} className="w-auto p-0">
+                <CalendarRange
+                  dateRange={dateRange}
+                  onDateRangeChange={handleDateRangeChange}
+                />
+              </PopoverContent>
+            </Popover>
+            <Button onClick={handleOpenDialog} size="sm" className="ml-auto shrink-0">
               <PackageMinus className="mr-2 h-4 w-4" />
               Quick Pick
             </Button>
@@ -252,11 +349,11 @@ export function PickItems() {
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/70 bg-background">
-              <table className="w-full border-collapse text-sm">
-                <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
-                  <tr className="border-b border-border transition-colors">
-                    <th
-                      className="h-12 px-4 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:text-foreground"
+              <Table className="text-sm">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead
+                      className="cursor-pointer hover:text-foreground"
                       onClick={() => handleSort('item')}
                     >
                       <div className="flex items-center gap-2">
@@ -266,10 +363,10 @@ export function PickItems() {
                         )}
                         {sortColumn !== 'item' && <ArrowUpDown className="h-4 w-4 opacity-50" />}
                       </div>
-                    </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">SKU</th>
-                    <th
-                      className="h-12 px-4 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:text-foreground"
+                    </TableHead>
+                    <TableHead>SKU</TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:text-foreground"
                       onClick={() => handleSort('quantity')}
                     >
                       <div className="flex items-center gap-2">
@@ -279,10 +376,10 @@ export function PickItems() {
                         )}
                         {sortColumn !== 'quantity' && <ArrowUpDown className="h-4 w-4 opacity-50" />}
                       </div>
-                    </th>
-                    <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">Notes</th>
-                    <th
-                      className="h-12 px-4 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:text-foreground"
+                    </TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead
+                      className="cursor-pointer hover:text-foreground"
                       onClick={() => handleSort('time')}
                     >
                       <div className="flex items-center gap-2">
@@ -292,10 +389,10 @@ export function PickItems() {
                         )}
                         {sortColumn !== 'time' && <ArrowUpDown className="h-4 w-4 opacity-50" />}
                       </div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="[&_tr:last-child]:border-0">
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {filteredAndSortedTransactions.map((txn, index) => {
                     // Use item_name and sku directly from transaction (returned by API)
                     const itemName = txn.item_name || 'Unknown'
@@ -308,28 +405,28 @@ export function PickItems() {
                         transition={{ delay: index * 0.05 }}
                         className="border-b border-border transition-colors hover:bg-muted/50"
                       >
-                        <td className="p-4 align-middle font-medium">
+                        <TableCell className="font-medium">
                           {itemName}
-                        </td>
-                        <td className="p-4 align-middle">
+                        </TableCell>
+                        <TableCell>
                           <code className="rounded bg-muted px-2 py-1 text-xs">
                             {itemSku}
                           </code>
-                        </td>
-                        <td className="p-4 align-middle">
+                        </TableCell>
+                        <TableCell>
                           <Badge variant="destructive">{Math.abs(txn.quantity)}</Badge>
-                        </td>
-                        <td className="p-4 align-middle text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
                           {txn.notes || '-'}
-                        </td>
-                        <td className="p-4 align-middle text-sm text-muted-foreground">
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
                           {new Date(txn.created_at).toLocaleString()}
-                        </td>
+                        </TableCell>
                       </motion.tr>
                     )
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </CardContent>
@@ -436,10 +533,10 @@ export function PickItems() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" className={DIALOG_OUTLINE_BUTTON_CLASS} onClick={() => setShowPickDialog(false)}>
+            <Button variant="outline" onClick={() => setShowPickDialog(false)}>
               Cancel
             </Button>
-            <Button className={DIALOG_PRIMARY_BUTTON_CLASS} onClick={handlePick} disabled={!selectedItem || !quantity}>
+            <Button onClick={handlePick} disabled={!selectedItem || !quantity}>
               <PackageMinus className="mr-2 h-4 w-4" />
               Confirm Pick
             </Button>

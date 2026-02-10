@@ -24,10 +24,19 @@ function resolveApiBaseUrl(): string {
 
 export const API_BASE_URL = resolveApiBaseUrl();
 
+type QueryParams = Record<string, string | number | boolean>;
+
 // Generic API functions
-export async function get(url: string, params?: Record<string, any>): Promise<any> {
+export async function get<T = unknown>(url: string, params?: QueryParams): Promise<ApiResponse<T>> {
   const token = localStorage.getItem('token');
-  const queryString = params ? '?' + new URLSearchParams(params).toString() : '';
+  const queryString = params
+    ? '?' + new URLSearchParams(
+      Object.entries(params).reduce<Record<string, string>>((acc, [key, value]) => {
+        acc[key] = String(value);
+        return acc;
+      }, {})
+    ).toString()
+    : '';
   const response = await fetch(`${API_BASE_URL}${url}${queryString}`, {
     headers: {
       'Content-Type': 'application/json',
@@ -37,7 +46,7 @@ export async function get(url: string, params?: Record<string, any>): Promise<an
   return response.json();
 }
 
-export async function post(url: string, data: any): Promise<any> {
+export async function post<T = unknown, B = unknown>(url: string, data: B): Promise<ApiResponse<T>> {
   const token = localStorage.getItem('token');
   const response = await fetch(`${API_BASE_URL}${url}`, {
     method: 'POST',
@@ -50,7 +59,7 @@ export async function post(url: string, data: any): Promise<any> {
   return response.json();
 }
 
-export async function put(url: string, data: any): Promise<any> {
+export async function put<T = unknown, B = unknown>(url: string, data: B): Promise<ApiResponse<T>> {
   const token = localStorage.getItem('token');
   const response = await fetch(`${API_BASE_URL}${url}`, {
     method: 'PUT',
@@ -63,7 +72,7 @@ export async function put(url: string, data: any): Promise<any> {
   return response.json();
 }
 
-export async function del(url: string): Promise<any> {
+export async function del<T = unknown>(url: string): Promise<ApiResponse<T>> {
   const token = localStorage.getItem('token');
   const response = await fetch(`${API_BASE_URL}${url}`, {
     method: 'DELETE',
@@ -153,6 +162,24 @@ export interface Category {
   item_count: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface Location {
+  id: number;
+  code: string;
+  zone: string;
+  aisle?: string;
+  shelf?: string;
+  capacity: number;
+  occupied: number;
+  status: string;
+}
+
+export interface Statistics {
+  total_items?: number;
+  low_stock_items?: number;
+  total_transactions?: number;
+  [key: string]: string | number | boolean | null | undefined;
 }
 
 // Authentication
@@ -266,14 +293,14 @@ export async function getTransactions(limit = 100): Promise<Transaction[]> {
 }
 
 // Locations
-export async function getAllLocations(): Promise<any[]> {
+export async function getAllLocations(): Promise<Location[]> {
   const response = await fetch(`${API_BASE_URL}/locations`, {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
     }
   });
-  const result: ApiResponse<any[]> = await response.json();
+  const result: ApiResponse<Location[]> = await response.json();
 
   if (!result.success || !result.data) {
     throw new Error(result.error || 'Failed to fetch locations');
@@ -283,14 +310,14 @@ export async function getAllLocations(): Promise<any[]> {
 }
 
 // Statistics
-export async function getStatistics(): Promise<any> {
+export async function getStatistics(): Promise<Statistics> {
   const response = await fetch(`${API_BASE_URL}/stats`, {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
     }
   });
-  const result: ApiResponse<any> = await response.json();
+  const result: ApiResponse<Statistics> = await response.json();
 
   if (!result.success || !result.data) {
     throw new Error(result.error || 'Failed to fetch statistics');
@@ -417,7 +444,7 @@ export async function createLocation(data: {
 }
 
 // Update Location
-export async function updateLocation(address: string, data: any): Promise<void> {
+export async function updateLocation(address: string, data: Partial<Location>): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/locations/${address}`, {
     method: 'PUT',
     headers: {

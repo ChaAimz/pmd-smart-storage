@@ -6,6 +6,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Small } from '@/components/ui/typography'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Dialog,
   DialogContent,
@@ -26,6 +34,13 @@ import { toast } from 'sonner'
 import * as api from '@/services/api'
 
 // Using api.Item type from services/api.ts
+type ItemWithLegacyFields = api.Item & {
+  master_name?: string
+  master_sku?: string
+  local_name?: string
+  local_sku?: string
+  master_category?: string
+}
 
 type SortColumn = 'sku' | 'name' | 'category' | 'quantity' | 'reorder_point' | 'lead_time_days' | 'supplier_name' | 'status'
 type ColumnKey = SortColumn | 'actions'
@@ -221,8 +236,9 @@ export function ManageItems() {
   const filteredItems = items
     .filter((item) => {
       // Handle API response structure with master_name/master_sku
-      const itemName = item.name || (item as any).master_name || ''
-      const itemSku = item.sku || (item as any).master_sku || (item as any).local_sku || ''
+      const legacyItem = item as ItemWithLegacyFields
+      const itemName = legacyItem.name || legacyItem.master_name || ''
+      const itemSku = legacyItem.sku || legacyItem.master_sku || legacyItem.local_sku || ''
       const matchesSearch =
         itemName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         itemSku.toLowerCase().includes(searchQuery.toLowerCase())
@@ -231,12 +247,14 @@ export function ManageItems() {
       return matchesSearch && matchesCategory
     })
     .sort((a, b) => {
-      const nameA = a.name || (a as any).master_name || ''
-      const nameB = b.name || (b as any).master_name || ''
-      const skuA = a.sku || (a as any).master_sku || (a as any).local_sku || ''
-      const skuB = b.sku || (b as any).master_sku || (b as any).local_sku || ''
-      const categoryA = a.category || (a as any).master_category || ''
-      const categoryB = b.category || (b as any).master_category || ''
+      const itemA = a as ItemWithLegacyFields
+      const itemB = b as ItemWithLegacyFields
+      const nameA = itemA.name || itemA.master_name || ''
+      const nameB = itemB.name || itemB.master_name || ''
+      const skuA = itemA.sku || itemA.master_sku || itemA.local_sku || ''
+      const skuB = itemB.sku || itemB.master_sku || itemB.local_sku || ''
+      const categoryA = itemA.category || itemA.master_category || ''
+      const categoryB = itemB.category || itemB.master_category || ''
       const supplierA = a.supplier_name || ''
       const supplierB = b.supplier_name || ''
 
@@ -313,23 +331,26 @@ export function ManageItems() {
             <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto">
               {/* Basic Information */}
               <div className="space-y-4">
-                <h3 className="font-semibold text-sm text-muted-foreground">Basic Information</h3>
+                <Small className="text-muted-foreground">Basic Information</Small>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="new-sku">SKU *</Label>
                     <Input id="new-sku" placeholder="SKU-XXXX" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="new-category">Category *</Label>
-                    <select
-                      id="new-category"
-                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      <option value="">Select category...</option>
-                      {activeCategoryNames.map((cat) => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
+                    <Label>Category *</Label>
+                    <Select>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {activeCategoryNames.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -344,7 +365,7 @@ export function ManageItems() {
 
               {/* Inventory Planning */}
               <div className="space-y-4 pt-4 border-t">
-                <h3 className="font-semibold text-sm text-muted-foreground">Inventory Planning</h3>
+                <Small className="text-muted-foreground">Inventory Planning</Small>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="new-reorder-point">Reorder Point *</Label>
@@ -373,7 +394,7 @@ export function ManageItems() {
 
               {/* Supplier Information */}
               <div className="space-y-4 pt-4 border-t">
-                <h3 className="font-semibold text-sm text-muted-foreground">Supplier Information</h3>
+                <Small className="text-muted-foreground">Supplier Information</Small>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="new-supplier">Supplier Name</Label>
@@ -465,10 +486,10 @@ export function ManageItems() {
               <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
                 <tr className="border-b border-border">
                   <th className="relative h-12 px-4 align-middle font-medium">
-                    <button type="button" className="inline-flex items-center gap-1.5 hover:text-foreground" onClick={() => handleSort('sku')}>
+                    <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-sm font-medium text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={() => handleSort('sku')}>
                       SKU
                       {getSortIcon('sku')}
-                    </button>
+                    </Button>
                     <div
                       role="separator"
                       aria-orientation="vertical"
@@ -477,10 +498,10 @@ export function ManageItems() {
                     />
                   </th>
                   <th className="relative h-12 px-4 align-middle font-medium">
-                    <button type="button" className="inline-flex items-center gap-1.5 hover:text-foreground" onClick={() => handleSort('name')}>
+                    <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-sm font-medium text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={() => handleSort('name')}>
                       Name
                       {getSortIcon('name')}
-                    </button>
+                    </Button>
                     <div
                       role="separator"
                       aria-orientation="vertical"
@@ -489,10 +510,10 @@ export function ManageItems() {
                     />
                   </th>
                   <th className="relative h-12 px-4 align-middle font-medium">
-                    <button type="button" className="inline-flex items-center gap-1.5 hover:text-foreground" onClick={() => handleSort('category')}>
+                    <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-sm font-medium text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={() => handleSort('category')}>
                       Category
                       {getSortIcon('category')}
-                    </button>
+                    </Button>
                     <div
                       role="separator"
                       aria-orientation="vertical"
@@ -501,10 +522,10 @@ export function ManageItems() {
                     />
                   </th>
                   <th className="relative h-12 px-4 align-middle font-medium">
-                    <button type="button" className="inline-flex items-center gap-1.5 hover:text-foreground" onClick={() => handleSort('quantity')}>
+                    <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-sm font-medium text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={() => handleSort('quantity')}>
                       Quantity
                       {getSortIcon('quantity')}
-                    </button>
+                    </Button>
                     <div
                       role="separator"
                       aria-orientation="vertical"
@@ -513,10 +534,10 @@ export function ManageItems() {
                     />
                   </th>
                   <th className="relative h-12 px-4 align-middle font-medium">
-                    <button type="button" className="inline-flex items-center gap-1.5 hover:text-foreground" onClick={() => handleSort('reorder_point')}>
+                    <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-sm font-medium text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={() => handleSort('reorder_point')}>
                       Reorder Point
                       {getSortIcon('reorder_point')}
-                    </button>
+                    </Button>
                     <div
                       role="separator"
                       aria-orientation="vertical"
@@ -525,10 +546,10 @@ export function ManageItems() {
                     />
                   </th>
                   <th className="relative h-12 px-4 align-middle font-medium">
-                    <button type="button" className="inline-flex items-center gap-1.5 hover:text-foreground" onClick={() => handleSort('lead_time_days')}>
+                    <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-sm font-medium text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={() => handleSort('lead_time_days')}>
                       Lead Time
                       {getSortIcon('lead_time_days')}
-                    </button>
+                    </Button>
                     <div
                       role="separator"
                       aria-orientation="vertical"
@@ -537,10 +558,10 @@ export function ManageItems() {
                     />
                   </th>
                   <th className="relative h-12 px-4 align-middle font-medium">
-                    <button type="button" className="inline-flex items-center gap-1.5 hover:text-foreground" onClick={() => handleSort('supplier_name')}>
+                    <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-sm font-medium text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={() => handleSort('supplier_name')}>
                       Supplier
                       {getSortIcon('supplier_name')}
-                    </button>
+                    </Button>
                     <div
                       role="separator"
                       aria-orientation="vertical"
@@ -549,10 +570,10 @@ export function ManageItems() {
                     />
                   </th>
                   <th className="relative h-12 px-4 align-middle font-medium">
-                    <button type="button" className="inline-flex items-center gap-1.5 hover:text-foreground" onClick={() => handleSort('status')}>
+                    <Button type="button" variant="ghost" size="sm" className="h-auto p-0 text-sm font-medium text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={() => handleSort('status')}>
                       Status
                       {getSortIcon('status')}
-                    </button>
+                    </Button>
                     <div
                       role="separator"
                       aria-orientation="vertical"
@@ -574,9 +595,10 @@ export function ManageItems() {
               <tbody>
                 {filteredItems.map((item, index) => {
                   // Handle API response structure
-                  const itemName = item.name || (item as any).master_name || (item as any).local_name || 'N/A'
-                  const itemSku = item.sku || (item as any).master_sku || (item as any).local_sku || 'N/A'
-                  const itemCategory = item.category || (item as any).master_category || 'General'
+                  const legacyItem = item as ItemWithLegacyFields
+                  const itemName = legacyItem.name || legacyItem.master_name || legacyItem.local_name || 'N/A'
+                  const itemSku = legacyItem.sku || legacyItem.master_sku || legacyItem.local_sku || 'N/A'
+                  const itemCategory = legacyItem.category || legacyItem.master_category || 'General'
                   return (
                   <motion.tr
                     key={item.id}
@@ -676,16 +698,19 @@ export function ManageItems() {
                   <Input id="edit-sku" defaultValue={selectedItem.sku} />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="edit-category">Category *</Label>
-                  <select
-                    id="edit-category"
-                    defaultValue={selectedItem.category}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {activeCategoryNames.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
+                  <Label>Category *</Label>
+                  <Select defaultValue={selectedItem.category || undefined}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select category..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeCategoryNames.map((cat) => (
+                        <SelectItem key={cat} value={cat}>
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <div className="space-y-2">

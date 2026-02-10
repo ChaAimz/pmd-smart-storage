@@ -2,24 +2,43 @@ import { useEffect } from 'react';
 import { toast } from 'sonner';
 import * as api from '@/services/api';
 
+interface AlertDelivery {
+  urgency?: string;
+  pr_number: string;
+  days_overdue?: number;
+}
+
+interface AlertStockItem {
+  urgency?: string;
+  name: string;
+}
+
+interface DashboardAlertPayload {
+  upcomingDeliveries: AlertDelivery[];
+  overdueDeliveries: AlertDelivery[];
+  pendingApprovals: AlertDelivery[];
+  lowStockItems: AlertStockItem[];
+}
+
 export function DashboardAlerts() {
   const checkAlerts = async () => {
     try {
-      const response = await api.get('/dashboard/alerts');
+      const response = await api.get<DashboardAlertPayload>('/dashboard/alerts');
       if (!response.success) return;
 
-      const { data } = response;
+      const data = response.data;
+      if (!data) return;
 
       // Check deliveries today
       const todayDeliveries = data.upcomingDeliveries.filter(
-        (d: any) => d.urgency === 'today'
+        (d) => d.urgency === 'today'
       );
       
       if (todayDeliveries.length > 0) {
         toast.info(
           `📦 มี ${todayDeliveries.length} รายการที่ต้องรับของวันนี้`,
           {
-            description: todayDeliveries.map((d: any) => d.pr_number).join(', '),
+            description: todayDeliveries.map((d) => d.pr_number).join(', '),
             duration: 10000
           }
         );
@@ -30,8 +49,8 @@ export function DashboardAlerts() {
         toast.error(
           `⏰ ${data.overdueDeliveries.length} รายการเลยกำหนดรับของ`,
           {
-            description: data.overdueDeliveries.map((d: any) => 
-              `${d.pr_number} (${Math.floor(d.days_overdue)} วัน)`
+            description: data.overdueDeliveries.map((d) => 
+              `${d.pr_number} (${Math.floor(d.days_overdue ?? 0)} วัน)`
             ).join(', '),
             duration: 0
           }
@@ -53,14 +72,14 @@ export function DashboardAlerts() {
 
       // Check critical stock
       const criticalStock = data.lowStockItems.filter(
-        (i: any) => i.urgency === 'critical'
+        (i) => i.urgency === 'critical'
       );
       
       if (criticalStock.length > 0) {
         toast.error(
           `⚠️ สต็อกวิกฤต ${criticalStock.length} รายการ`,
           {
-            description: criticalStock.map((i: any) => i.name).join(', '),
+            description: criticalStock.map((i) => i.name).join(', '),
             duration: 0
           }
         );

@@ -178,6 +178,29 @@ Button.displayName = 'Button'
 - For UI tasks, apply `../skills/shadcn-dashboard-ui/SKILL.md`.
 - Cross-reference style rules in `../docs/reference/UI_STYLE_GUIDE.md`.
 
+### Shadcn-First Component Policy (Required)
+- Prefer shadcn base components before custom markup for common UI patterns.
+- Required defaults:
+  - `Dialog`: `src/components/ui/dialog.tsx` (shadcn base)
+  - `Calendar`: `src/components/ui/calendar.tsx` with `mode="range"` for range filters
+  - `Toggle Group` / `Button Group`: use shadcn groups with contiguous controls (no visual gaps)
+  - `Breadcrumb`: `src/components/ui/breadcrumb.tsx` for top navigation path
+  - `Checkbox`: `src/components/ui/checkbox.tsx`
+- All new dialogs, table filters, and date-range pickers must follow the shadcn docs pattern first, then apply project-specific styling.
+
+### Typography Policy (Required)
+- Use shared typography primitives from `src/components/ui/typography.tsx` (`H1`, `H2`, `H3`, `Lead`, `Muted`, `Small`) for page headers and section titles.
+- Avoid ad-hoc heading classes like `text-3xl font-semibold` in new code when equivalent typography primitives exist.
+- Keep text scale consistent across pages; only add class overrides for responsive sizing when necessary.
+
+### Component Size Policy (Required)
+- Prefer shadcn size props over custom height/padding classes for core controls.
+- Default sizing:
+  - `Button`: use `size="default"` or `size="sm"` as first choice.
+  - `Input`: use base shadcn `Input` size; avoid per-page custom height unless required by a dense table toolbar.
+  - `ToggleGroup/ToggleGroupItem`: use `size="sm"`/`variant="outline"` for compact filter bars.
+- Avoid custom utility sizes like `h-7 px-2.5 text-xs` for shared actions unless there is a documented exception.
+
 ### Theme-Safe Styling Rules (Required)
 - Keep button tone consistent per page via shadcn variants (`default`, `outline`, `secondary`) instead of per-button hardcoded colors.
 - Keep button size consistent by pattern, not ad-hoc values:
@@ -201,6 +224,13 @@ Button.displayName = 'Button'
 - Category filter button (`All` / selected category) must remain standard `outline` style (not primary-filled).
 - Do not show `found` text next to the item-count chip; show only the number.
 - Search input and controls should stay aligned to match the Receive page spacing language.
+
+### Pick/Adjust Log Time Filter (Required)
+- `Pick Items` and `Adjust Stock` log tables must use the same time-filter pattern.
+- Default visible range is last `30 days`.
+- Provide preset button group: `30D`, `M`, `3M`, `6M`, `1Y`.
+- Provide date range selector using shadcn-style `Calendar` (Radix popover + range calendar).
+- Preset and custom range must both drive table filtering consistently.
 
 ### Table Style Baseline (Required)
 - All data tables across pages must follow the `Manage Items` table style as the canonical baseline.

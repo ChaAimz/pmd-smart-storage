@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
 import * as api from '@/services/api'
 
@@ -22,22 +22,19 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    // Check if user is already logged in (from localStorage)
+  const [user, setUser] = useState<User | null>(() => {
     const storedUser = localStorage.getItem('user')
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser))
-      } catch (error) {
-        console.error('Error parsing stored user:', error)
-        localStorage.removeItem('user')
-      }
+    if (!storedUser) return null
+
+    try {
+      return JSON.parse(storedUser) as User
+    } catch (error) {
+      console.error('Error parsing stored user:', error)
+      localStorage.removeItem('user')
+      return null
     }
-    setIsLoading(false)
-  }, [])
+  })
+  const [isLoading] = useState(false)
 
   const login = async (username: string, password: string) => {
     try {
@@ -45,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await api.login(username, password)
       
       // Backend returns { token, user }
-      const { token, ...userData } = response as any
+      const { token, user: userData } = response
       
       setUser(userData)
       localStorage.setItem('user', JSON.stringify(userData))

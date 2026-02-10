@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { H1, Lead } from '@/components/ui/typography'
 import { Package, Lock, User, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function Login() {
@@ -25,7 +26,7 @@ export default function Login() {
     try {
       await login(username, password)
       navigate('/')
-    } catch (err) {
+    } catch {
       setError('Invalid username or password')
     } finally {
       setIsLoading(false)
@@ -45,8 +46,8 @@ export default function Login() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary mb-4 shadow-lg">
             <Package className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold mb-2">Smart Storage</h1>
-          <p className="text-muted-foreground">Warehouse Management System</p>
+          <H1 className="mb-2 text-3xl">Smart Storage</H1>
+          <Lead>Warehouse Management System</Lead>
         </div>
 
         {/* Login Card */}
@@ -132,4 +133,3 @@ export default function Login() {
     </div>
   )
 }
-

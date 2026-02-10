@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { H1, H2, Lead, Muted } from '@/components/ui/typography'
 import { 
   User, Mail, Calendar, Save, 
   Lock, Bell, Activity, LogOut 
@@ -67,8 +68,8 @@ export default function Profile() {
   return (
     <div className="container mx-auto p-6 max-w-4xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">Profile Settings</h1>
-        <p className="text-muted-foreground">Manage your account settings and preferences</p>
+        <H1 className="text-3xl">Profile Settings</H1>
+        <Lead>Manage your account settings and preferences</Lead>
       </div>
 
       <div className="grid gap-6">
@@ -85,12 +86,12 @@ export default function Profile() {
               
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <h2 className="text-2xl font-bold">{user.fullName}</h2>
+                  <H2 className="text-2xl">{user.fullName}</H2>
                   <Badge variant={getRoleBadgeVariant(user.role)}>
                     {getRoleIcon(user.role)} {user.role.toUpperCase()}
                   </Badge>
                 </div>
-                <p className="text-muted-foreground mb-4">@{user.username}</p>
+                <Muted className="mb-4">@{user.username}</Muted>
                 
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="flex items-center gap-2">

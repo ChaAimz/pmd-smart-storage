@@ -16,6 +16,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { Small } from '@/components/ui/typography'
 
 interface RightSidebarProps {
   className?: string
@@ -57,16 +58,19 @@ export function RightSidebar({ className, onExpandChange }: RightSidebarProps) {
       )}
     >
       {/* Toggle Button */}
-      <button
+      <Button
+        type="button"
         onClick={handleToggle}
-        className="absolute -left-3 top-6 z-40 h-6 w-6 rounded-full border border-border bg-background shadow-md hover:bg-accent transition-colors flex items-center justify-center"
+        variant="outline"
+        size="icon"
+        className="absolute -left-3 top-6 z-40 h-6 w-6 rounded-full shadow-md"
       >
         {isExpanded ? (
           <ChevronRight className="h-4 w-4" />
         ) : (
           <ChevronLeft className="h-4 w-4" />
         )}
-      </button>
+      </Button>
 
       {/* Sidebar Content */}
       <div className="flex h-full flex-col overflow-y-auto">
@@ -84,7 +88,7 @@ export function RightSidebar({ className, onExpandChange }: RightSidebarProps) {
               <div>
                 <div className="flex items-center gap-2 mb-3 px-1">
                   <Zap className="h-4 w-4 text-primary" />
-                  <h3 className="font-semibold text-sm">Quick Actions</h3>
+                  <Small className="text-sm">Quick Actions</Small>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <Link to="/receive" className="block">
@@ -131,7 +135,7 @@ export function RightSidebar({ className, onExpandChange }: RightSidebarProps) {
                 <div className="flex items-center justify-between mb-3 px-1">
                   <div className="flex items-center gap-2">
                     <Wifi className="h-4 w-4 text-blue-500" />
-                    <h3 className="font-semibold text-sm">BLE Mesh Devices</h3>
+                    <Small className="text-sm">BLE Mesh Devices</Small>
                   </div>
                   <Badge variant="outline" className="text-xs">
                     {onlineDevices}/{totalDevices}
@@ -256,4 +260,3 @@ export function RightSidebar({ className, onExpandChange }: RightSidebarProps) {
     </aside>
   )
 }
-

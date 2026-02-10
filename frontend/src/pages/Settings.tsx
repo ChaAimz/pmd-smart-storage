@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ButtonGroup } from '@/components/ui/button-group'
 import {
   Dialog,
   DialogContent,
@@ -14,6 +15,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import * as api from '@/services/api'
 
 type CategoryFormState = {
@@ -258,40 +266,38 @@ export function Settings() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex justify-end">
-                            <div className="inline-flex items-center overflow-hidden rounded-md border border-input bg-background">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 rounded-none border-0"
-                              title="Edit category"
-                              aria-label={`Edit ${category.name}`}
-                              onClick={() => handleOpenEdit(category)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <span className="h-5 w-px bg-border" />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 rounded-none border-0"
-                              title={category.is_active ? 'Deactivate category' : 'Activate category'}
-                              aria-label={`${category.is_active ? 'Deactivate' : 'Activate'} ${category.name}`}
-                              onClick={() => handleToggleActive(category)}
-                            >
-                              <Power className="h-4 w-4" />
-                            </Button>
-                            <span className="h-5 w-px bg-border" />
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 rounded-none border-0 text-destructive hover:text-destructive"
-                              title="Delete category"
-                              aria-label={`Delete ${category.name}`}
-                              onClick={() => handleOpenDelete(category)}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                            </div>
+                            <ButtonGroup className="text-primary [&>*]:border-primary/70 [&>*]:bg-primary/5 [&>*]:text-primary [&>*]:hover:bg-primary/10">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                title="Edit category"
+                                aria-label={`Edit ${category.name}`}
+                                onClick={() => handleOpenEdit(category)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                title={category.is_active ? 'Deactivate category' : 'Activate category'}
+                                aria-label={`${category.is_active ? 'Deactivate' : 'Activate'} ${category.name}`}
+                                onClick={() => handleToggleActive(category)}
+                              >
+                                <Power className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                title="Delete category"
+                                aria-label={`Delete ${category.name}`}
+                                onClick={() => handleOpenDelete(category)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </ButtonGroup>
                           </div>
                         </td>
                       </tr>
@@ -382,23 +388,22 @@ export function Settings() {
           <div className="grid gap-4 py-2">
             {selectedCategory?.item_count ? (
               <div className="space-y-2">
-                <Label htmlFor="replacement-category">Replacement Category</Label>
-                <select
-                  id="replacement-category"
-                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  value={replacementCategoryId ?? ''}
-                  onChange={(event) => {
-                    const nextValue = event.target.value ? Number(event.target.value) : null
-                    setReplacementCategoryId(Number.isNaN(nextValue) ? null : nextValue)
-                  }}
+                <Label>Replacement Category</Label>
+                <Select
+                  value={replacementCategoryId ? String(replacementCategoryId) : undefined}
+                  onValueChange={(value) => setReplacementCategoryId(Number(value))}
                 >
-                  <option value="">Select replacement category</option>
-                  {activeReplacementOptions.map((category) => (
-                    <option key={category.id} value={category.id}>
-                      {category.name} ({category.item_count})
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select replacement category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeReplacementOptions.map((category) => (
+                      <SelectItem key={category.id} value={String(category.id)}>
+                        {category.name} ({category.item_count})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             ) : null}
           </div>

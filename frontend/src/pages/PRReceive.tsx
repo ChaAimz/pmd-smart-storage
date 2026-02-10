@@ -1,14 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import * as api from '@/services/api';
 
 // Helper functions to handle both old and new API response formats
-const getItemName = (item: any): string => {
+interface ItemLike {
+  name?: string;
+  master_name?: string;
+  local_name?: string;
+  sku?: string;
+  master_sku?: string;
+  local_sku?: string;
+}
+
+const getItemName = (item: ItemLike): string => {
   return item?.name || item?.master_name || item?.local_name || 'Unknown'
 }
 
-const getItemSku = (item: any): string => {
+const getItemSku = (item: ItemLike): string => {
   return item?.sku || item?.master_sku || item?.local_sku || 'N/A'
 }
 import { Button } from '@/components/ui/button';
@@ -16,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { H1, Lead } from '@/components/ui/typography';
 import { 
   Package, 
   Truck, 
@@ -74,18 +84,16 @@ export function PRReceive() {
   // Receive items
   const [receiveItems, setReceiveItems] = useState<ReceiveItem[]>([]);
 
-  useEffect(() => {
-    fetchPR();
-  }, [id]);
-
-  const fetchPR = async () => {
+  const fetchPR = useCallback(async () => {
     try {
-      const response = await api.get(`/prs/${id}`);
+      const response = await api.get<PR>(`/prs/${id}`);
       if (response.success) {
-        setPr(response.data);
+        const prData = response.data;
+        if (!prData) return;
+        setPr(prData);
         
         // Initialize receive items with remaining quantity
-        const items = response.data.items
+        const items = prData.items
           .filter((item: PRItem) => item.requested_quantity > item.received_quantity)
           .map((item: PRItem) => ({
             pr_item_id: item.id,
@@ -96,15 +104,23 @@ export function PRReceive() {
           }));
         setReceiveItems(items);
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to fetch PR');
       navigate('/prs');
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
 
-  const updateReceiveItem = (prItemId: number, field: keyof ReceiveItem, value: any) => {
+  useEffect(() => {
+    void fetchPR();
+  }, [fetchPR]);
+
+  const updateReceiveItem = (
+    prItemId: number,
+    field: keyof ReceiveItem,
+    value: ReceiveItem[keyof ReceiveItem]
+  ) => {
     setReceiveItems(prev => prev.map(item => 
       item.pr_item_id === prItemId ? { ...item, [field]: value } : item
     ));
@@ -135,7 +151,7 @@ export function PRReceive() {
 
     try {
       setSubmitting(true);
-      const response = await api.post(`/prs/${id}/receive`, {
+      const response = await api.post<{ received_count: number }>(`/prs/${id}/receive`, {
         po_number: poNumber.trim(),
         invoice_number: invoiceNumber.trim(),
         supplier_name: supplierName.trim(),
@@ -144,13 +160,15 @@ export function PRReceive() {
       });
 
       if (response.success) {
+        const result = response.data;
         toast.success('Receipt saved successfully', {
-          description: `${response.data.received_count} items received into system`
+          description: `${result?.received_count || 0} items received into system`
         });
         navigate('/prs');
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to receive items');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to receive items';
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -186,8 +204,8 @@ export function PRReceive() {
           Back
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">Receive Items to Warehouse</h1>
-          <p className="text-gray-500">Enter info from PO/Delivery document</p>
+          <H1 className="text-3xl">Receive Items to Warehouse</H1>
+          <Lead>Enter info from PO/Delivery document</Lead>
         </div>
       </div>
 
