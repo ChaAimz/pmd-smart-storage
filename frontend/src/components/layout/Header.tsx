@@ -134,7 +134,7 @@ export function Header({ isSidebarCollapsed, isDesktopSidebar, onSidebarToggle }
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative h-9 w-9 sm:h-10 sm:w-10" aria-label="Notifications">
+              <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
                 <Bell className="h-5 w-5" />
                 <Badge
                   variant="destructive"
@@ -173,7 +173,7 @@ export function Header({ isSidebarCollapsed, isDesktopSidebar, onSidebarToggle }
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-9 gap-2 px-1.5 sm:h-10 sm:px-2" aria-label="User menu">
+              <Button variant="ghost" className="relative gap-2 px-2" aria-label="User menu">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user?.avatarUrl} alt={user?.fullName} />
                   <AvatarFallback>

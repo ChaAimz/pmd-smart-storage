@@ -348,8 +348,9 @@ export function PickItems() {
               {filterText ? 'No matching transactions found' : 'No pick transactions yet'}
             </div>
           ) : (
-            <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/70 bg-background">
-              <Table className="text-sm">
+            <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/70 bg-background">
+              <div className="h-full overflow-auto">
+              <Table className="min-w-[860px] text-sm">
                 <TableHeader>
                   <TableRow>
                     <TableHead
@@ -427,6 +428,7 @@ export function PickItems() {
                   })}
                 </TableBody>
               </Table>
+              </div>
             </div>
           )}
         </CardContent>

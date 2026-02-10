@@ -243,8 +243,8 @@ interface PRReceiveDialogItem {
   receive_quantity: number
 }
 
-const COMPACT_PRIMARY_BUTTON_CLASS = 'h-7 px-2.5 text-xs'
-const COMPACT_OUTLINE_BUTTON_CLASS = 'h-7 px-2.5 text-xs'
+const COMPACT_PRIMARY_BUTTON_CLASS = 'h-8 px-3 text-xs'
+const COMPACT_OUTLINE_BUTTON_CLASS = 'h-8 px-3 text-xs'
 const DIALOG_PRIMARY_BUTTON_CLASS = 'h-9 px-4'
 const DIALOG_OUTLINE_BUTTON_CLASS = 'h-9 px-4'
 
@@ -965,7 +965,8 @@ export function ReceiveItems() {
                 {filterText ? 'No matching transactions found' : 'No receive transactions yet'}
               </div>
             ) : (
-              <div className="h-full min-h-0 overflow-auto rounded-lg border border-border/70">
+              <div className="h-full min-h-0 overflow-hidden rounded-lg border border-border/70 bg-background">
+                <div className="h-full overflow-auto">
                 <Table className="min-w-[640px]">
                   <TableHeader>
                     <TableRow>
@@ -1002,6 +1003,7 @@ export function ReceiveItems() {
                     })}
                   </TableBody>
                 </Table>
+                </div>
               </div>
             )}
           </CardContent>

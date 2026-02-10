@@ -219,8 +219,9 @@ Button.displayName = 'Button'
 ### Theme-Safe Styling Rules (Required)
 - Keep button tone consistent per page via shadcn variants (`default`, `outline`, `secondary`) instead of per-button hardcoded colors.
 - Keep button size consistent by pattern, not ad-hoc values:
-  - compact list actions: `h-7 px-2.5 text-xs`
+  - compact list actions: `h-8 px-3 text-xs` (equivalent to shadcn `size="sm"` density)
   - dialog/footer actions: `h-9 px-4`
+  - icon actions: use `size="icon"` baseline (`h-9 w-9`) and avoid per-page `h-8/w-8` overrides unless explicitly required
 - Use `Quick Pick` (`/pick`) as the compact quick-action size reference for other pages.
 - Prefer semantic Tailwind tokens over fixed palette classes for core surfaces and controls:
   - `bg-background`, `text-foreground`, `border-border`, `border-input`, `bg-muted`
@@ -249,9 +250,11 @@ Button.displayName = 'Button'
 
 ### Table Style Baseline (Required)
 - All data tables across pages must follow the `Manage Items` table style as the canonical baseline.
+- This is mandatory for the entire app (existing pages + new pages). Do not introduce alternate table visual patterns.
 - Required table wrapper pattern:
   - outer container: `rounded-lg border border-border/70 bg-background`
-  - inner scroll container for sticky headers
+  - outer behavior: `overflow-hidden`
+  - inner scroll container: `h-full overflow-auto` for sticky headers
 - Required header style:
   - `sticky top-0 z-10`
   - `bg-muted/50`

@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
   Select,
   SelectContent,
@@ -211,24 +212,25 @@ export function Settings() {
           </CardHeader>
 
           <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-0">
-            <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/70 bg-background">
+            <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/70 bg-background">
               {loading ? (
                 <div className="p-6 text-sm text-muted-foreground">Loading categories...</div>
               ) : (
-                <table className="w-full border-collapse">
-                  <thead className="sticky top-0 z-10 bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
-                    <tr className="border-b border-border">
-                      <th className="h-12 px-4 align-middle font-medium">Category</th>
-                      <th className="h-12 px-4 align-middle font-medium">Color</th>
-                      <th className="h-12 px-4 align-middle font-medium">Status</th>
-                      <th className="h-12 px-4 align-middle font-medium">Usage</th>
-                      <th className="h-12 px-4 align-middle font-medium text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <div className="h-full overflow-auto">
+                <Table className="min-w-[760px]">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Category</TableHead>
+                      <TableHead>Color</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Usage</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {categories.map((category) => (
-                      <tr key={category.id} className="border-b border-border transition-colors hover:bg-muted/50 last:border-0">
-                        <td className="px-4 py-3">
+                      <TableRow key={category.id}>
+                        <TableCell className="py-3">
                           {(() => {
                             const chipColor = category.color || DEFAULT_COLOR
                             return (
@@ -244,8 +246,8 @@ export function Settings() {
                           </Badge>
                             )
                           })()}
-                        </td>
-                        <td className="px-4 py-3">
+                        </TableCell>
+                        <TableCell className="py-3">
                           <div className="flex items-center gap-2">
                             <span
                               className="h-4 w-4 rounded-full border border-border"
@@ -253,24 +255,23 @@ export function Settings() {
                             />
                             <span className="text-sm text-muted-foreground">{category.color}</span>
                           </div>
-                        </td>
-                        <td className="px-4 py-3">
+                        </TableCell>
+                        <TableCell className="py-3">
                           <Badge variant={category.is_active ? 'default' : 'secondary'}>
                             {category.is_active ? 'Active' : 'Inactive'}
                           </Badge>
-                        </td>
-                        <td className="px-4 py-3">
+                        </TableCell>
+                        <TableCell className="py-3">
                           <Badge className="rounded-full bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground hover:bg-primary">
                             {category.item_count}
                           </Badge>
-                        </td>
-                        <td className="px-4 py-3">
+                        </TableCell>
+                        <TableCell className="py-3">
                           <div className="flex justify-end">
                             <ButtonGroup className="text-primary [&>*]:border-primary/70 [&>*]:bg-primary/5 [&>*]:text-primary [&>*]:hover:bg-primary/10">
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-8 w-8"
                                 title="Edit category"
                                 aria-label={`Edit ${category.name}`}
                                 onClick={() => handleOpenEdit(category)}
@@ -280,7 +281,6 @@ export function Settings() {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-8 w-8"
                                 title={category.is_active ? 'Deactivate category' : 'Activate category'}
                                 aria-label={`${category.is_active ? 'Deactivate' : 'Activate'} ${category.name}`}
                                 onClick={() => handleToggleActive(category)}
@@ -290,7 +290,7 @@ export function Settings() {
                               <Button
                                 variant="outline"
                                 size="icon"
-                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
                                 title="Delete category"
                                 aria-label={`Delete ${category.name}`}
                                 onClick={() => handleOpenDelete(category)}
@@ -299,11 +299,12 @@ export function Settings() {
                               </Button>
                             </ButtonGroup>
                           </div>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
+                </div>
               )}
             </div>
           </CardContent>

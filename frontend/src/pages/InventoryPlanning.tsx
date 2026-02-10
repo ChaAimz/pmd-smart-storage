@@ -40,7 +40,7 @@ import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import { H1, Lead } from '@/components/ui/typography'
 
-const COMPACT_PRIMARY_BUTTON_CLASS = 'h-7 px-2.5 text-xs'
+const COMPACT_PRIMARY_BUTTON_CLASS = 'h-8 px-3 text-xs'
 
 export default function InventoryPlanning() {
   const [lowStockItems, setLowStockItems] = useState<api.Item[]>([])
@@ -365,7 +365,8 @@ export default function InventoryPlanning() {
                     {searchQuery ? 'No items found matching your search' : 'All items are well stocked'}
                   </div>
                 ) : (
-                  <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/70 bg-background">
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/70 bg-background">
+                    <div className="h-full overflow-auto">
                     <table className="w-full min-w-[980px] border-collapse">
                       <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
                         <tr className="border-b border-border">
@@ -477,6 +478,7 @@ export default function InventoryPlanning() {
                         ))}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 )}
               </CardContent>
@@ -507,7 +509,8 @@ export default function InventoryPlanning() {
                     No purchase orders yet
                   </div>
                 ) : (
-                  <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/70 bg-background">
+                  <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/70 bg-background">
+                    <div className="h-full overflow-auto">
                     <table className="w-full min-w-[920px] border-collapse">
                       <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
                         <tr className="border-b border-border">
@@ -571,6 +574,7 @@ export default function InventoryPlanning() {
                         })}
                       </tbody>
                     </table>
+                    </div>
                   </div>
                 )}
               </CardContent>
