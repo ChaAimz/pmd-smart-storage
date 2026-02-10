@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { H3, Muted } from '@/components/ui/typography'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/contexts/use-auth'
 import {
   Breadcrumb,
   BreadcrumbItem,

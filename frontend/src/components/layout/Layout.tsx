@@ -5,7 +5,8 @@ import { Sidebar } from './Sidebar'
 import { RightSidebar } from './RightSidebar'
 import { Button } from '@/components/ui/button'
 
-import { PageProvider, usePageContext } from '@/contexts/PageContext'
+import { PageProvider } from '@/contexts/PageContext'
+import { usePageContext } from '@/contexts/use-page-context'
 
 function LayoutContent() {
   const location = useLocation()

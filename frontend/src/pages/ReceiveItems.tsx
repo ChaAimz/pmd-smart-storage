@@ -216,8 +216,8 @@ import {
 import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
-import { useAuth } from '@/contexts/AuthContext'
-import { usePageContext } from '@/contexts/PageContext'
+import { useAuth } from '@/contexts/use-auth'
+import { usePageContext } from '@/contexts/use-page-context'
 
 interface PRGuideItem {
   itemName: string

@@ -42,8 +42,8 @@ import {
 import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
-import { useAuth } from '@/contexts/AuthContext'
-import { usePageContext } from '@/contexts/PageContext'
+import { useAuth } from '@/contexts/use-auth'
+import { usePageContext } from '@/contexts/use-page-context'
 
 type RangePreset = '30D' | 'M' | '3M' | '6M' | '1Y' | 'CUSTOM'
 const RANGE_PRESET_LABELS: Record<Exclude<RangePreset, 'CUSTOM'>, string> = {

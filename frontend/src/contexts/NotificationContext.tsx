@@ -1,27 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
 import * as api from '@/services/api';
-
-interface Notification {
-  id: number;
-  type: string;
-  title: string;
-  message: string;
-  data: Record<string, unknown> | null;
-  link: string;
-  is_read: boolean;
-  created_at: string;
-}
-
-interface NotificationContextType {
-  notifications: Notification[];
-  unreadCount: number;
-  fetchNotifications: () => Promise<void>;
-  markAsRead: (id: number) => Promise<void>;
-  markAllAsRead: () => Promise<void>;
-}
-
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
+import { NotificationContext, type Notification } from '@/contexts/notification-context';
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -135,12 +115,4 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       {children}
     </NotificationContext.Provider>
   );
-}
-
-export function useNotifications() {
-  const context = useContext(NotificationContext);
-  if (context === undefined) {
-    throw new Error('useNotifications must be used within a NotificationProvider');
-  }
-  return context;
 }

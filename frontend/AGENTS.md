@@ -201,6 +201,21 @@ Button.displayName = 'Button'
   - `ToggleGroup/ToggleGroupItem`: use `size="sm"`/`variant="outline"` for compact filter bars.
 - Avoid custom utility sizes like `h-7 px-2.5 text-xs` for shared actions unless there is a documented exception.
 
+### Refresh-safe Export Structure (Required)
+- Follow React Fast Refresh safe-export rules for every `.tsx` file.
+- Component files should export components only.
+- Move non-component exports (constants, `cva` variants, helper hooks, context objects/types) into dedicated companion files.
+- Required patterns:
+  - UI variants: `*-variants.ts` (example: `button-variants.ts`, `toggle-variants.ts`, `button-group-variants.ts`)
+  - Reusable hooks: `use-*.ts` (example: `use-auth.ts`, `use-page-context.ts`, `use-notifications.ts`)
+  - Context definitions/types: `*-context.ts` (provider component remains in `*.tsx`)
+- Avoid exporting hooks/constants from component/provider files when that file also exports a React component.
+- New code must keep `npm run lint` free of `react-refresh/only-export-components` warnings.
+- Enforcement standard (mandatory):
+  - Treat `react-refresh/only-export-components` warnings as release blockers for frontend changes.
+  - Before merge, run `npm run lint` and verify warnings are `0`.
+  - If a new component needs helper exports, create a companion file first (`*.ts`) and import back into the component file.
+
 ### Theme-Safe Styling Rules (Required)
 - Keep button tone consistent per page via shadcn variants (`default`, `outline`, `secondary`) instead of per-button hardcoded colors.
 - Keep button size consistent by pattern, not ad-hoc values:

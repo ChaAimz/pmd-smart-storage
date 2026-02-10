@@ -35,7 +35,7 @@ import {
   ArrowDown
 } from 'lucide-react'
 import * as api from '@/services/api'
-import { useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/contexts/use-auth'
 import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import { H1, Lead } from '@/components/ui/typography'
