@@ -65,6 +65,16 @@ class Database {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
+      -- Categories (controlled master data for item classification)
+      CREATE TABLE IF NOT EXISTS categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        color TEXT DEFAULT '#64748B',
+        is_active INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+
       -- Locations table
       CREATE TABLE IF NOT EXISTS locations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,6 +160,8 @@ class Database {
       -- Indexes
       CREATE INDEX IF NOT EXISTS idx_items_sku ON items(sku);
       CREATE INDEX IF NOT EXISTS idx_items_category ON items(category);
+      CREATE INDEX IF NOT EXISTS idx_categories_name ON categories(name);
+      CREATE INDEX IF NOT EXISTS idx_categories_active ON categories(is_active);
       CREATE INDEX IF NOT EXISTS idx_locations_address ON locations(node_address);
       CREATE INDEX IF NOT EXISTS idx_locations_zone ON locations(zone);
       CREATE INDEX IF NOT EXISTS idx_events_address ON pick_events(node_address);

@@ -349,6 +349,11 @@ Replace `YOUR_PC_IP` with your PC's actual IP address.
    - `@/` maps to `./src`
    - Configured in `vite.config.ts` and `tsconfig.json`
 
+5. **UI Consistency Memory (Important)**:
+   - Frontend visual rules and page-level UI memory are maintained in `frontend/AGENTS.md`.
+   - For `Manage Items`, keep the locked header pattern and chip/filter styles defined there.
+   - Use shadcn/ui components as default references for all dashboard UI work.
+
 5. **UI Style Memory (Shadcn Standard)**:
    - Use **shadcn/ui components** as the primary building blocks for page UI.
    - Summary/status cards must follow a single shared pattern via `frontend/src/components/ui/status-card.tsx`.
@@ -373,7 +378,22 @@ Replace `YOUR_PC_IP` with your PC's actual IP address.
    - Avoid hardcoded palette classes for reusable controls (`bg-blue-*`, `bg-emerald-*`, `border-sky-*`) when theme tokens are available.
    - Prefer semantic tokens so future theme switch is low-impact: `bg-background`, `text-foreground`, `border-border`, `border-input`, `bg-muted`.
    - If a compact button style is reused in a page, define shared class constants (for example `COMPACT_PRIMARY_BUTTON_CLASS`) and reuse them.
+   - Chip/badge standard (all pages, including status columns): flat, no border (`border-0`), rounded-full, size `px-3 py-1 text-sm`.
+   - Count-chip for dashboard/list headers: flat primary chip, no border, `bg-primary text-primary-foreground`.
    - Recommended default mapping for dashboard pages: `compact = h-7 px-2.5 text-xs`, `dialog/action = h-9 px-4`.
+   - Table style baseline (all pages): follow `Manage Items` table style as canonical.
+     - table wrapper: `rounded-lg border border-border/70 bg-background`
+     - header: `sticky top-0 z-10 bg-muted/50 backdrop-blur-xl` with visible `border-b border-border`
+     - body rows: `border-b border-border hover:bg-muted/50`
+   - Prefer shared `frontend/src/components/ui/table.tsx` primitives; if raw `<table>` is used, mirror the same classes.
+
+7. **Category Governance (Required)**:
+   - Implement category as controlled master data (Settings sub-menu), not ad-hoc text.
+   - Category deletion must be safe:
+     - if referenced by items, block direct delete and require replacement migration first
+     - allow delete only when no items reference it
+   - Prefer deactivate/archive over immediate hard-delete for safer operations.
+   - Use tags for flexible labeling/search only; keep core business logic dependent on controlled categories.
    - Use `/pick` page `Quick Pick` button as the visual size reference for compact quick-action buttons across pages.
    - Keep status highlighting (ETA/state badges) expressive, but isolate to status elements only; base layout/control surfaces stay theme-driven.
 

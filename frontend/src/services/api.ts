@@ -141,6 +141,18 @@ export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+  requires_replacement?: boolean;
+  usage_count?: number;
+}
+
+export interface Category {
+  id: number;
+  name: string;
+  color: string;
+  is_active: boolean;
+  item_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
 // Authentication
@@ -431,5 +443,71 @@ export async function searchItems(query: string): Promise<Item[]> {
   }
 
   return result.data;
+}
+
+// Categories (Settings > Category master)
+export async function getCategories(includeInactive = false): Promise<Category[]> {
+  const response = await fetch(`${API_BASE_URL}/categories?include_inactive=${includeInactive ? 'true' : 'false'}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${localStorage.getItem('token') || ''}`
+    }
+  });
+
+  const result: ApiResponse<Category[]> = await response.json();
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to fetch categories');
+  }
+  return result.data;
+}
+
+export async function createCategory(data: { name: string; color: string; is_active?: boolean }): Promise<Category> {
+  const response = await fetch(`${API_BASE_URL}/categories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+
+  const result: ApiResponse<Category> = await response.json();
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to create category');
+  }
+  return result.data;
+}
+
+export async function updateCategory(
+  id: number,
+  data: Partial<Pick<Category, 'name' | 'color' | 'is_active'>>
+): Promise<Category> {
+  const response = await fetch(`${API_BASE_URL}/categories/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data)
+  });
+
+  const result: ApiResponse<Category> = await response.json();
+  if (!result.success || !result.data) {
+    throw new Error(result.error || 'Failed to update category');
+  }
+  return result.data;
+}
+
+export async function deleteCategory(id: number, replacementCategoryId?: number): Promise<void> {
+  const query = replacementCategoryId ? `?replacement_category_id=${replacementCategoryId}` : '';
+  const response = await fetch(`${API_BASE_URL}/categories/${id}${query}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' }
+  });
+
+  const result: ApiResponse<void> = await response.json();
+  if (!result.success) {
+    const err = new Error(result.error || 'Failed to delete category') as Error & {
+      requiresReplacement?: boolean;
+      usageCount?: number;
+    };
+    err.requiresReplacement = !!result.requires_replacement;
+    err.usageCount = result.usage_count;
+    throw err;
+  }
 }
 

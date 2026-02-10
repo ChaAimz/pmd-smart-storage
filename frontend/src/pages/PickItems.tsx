@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Search, PackageMinus, History, ArrowUpDown, ArrowUp, ArrowDown, Package, TrendingDown } from 'lucide-react'
+import { Search, PackageMinus, ArrowUpDown, ArrowUp, ArrowDown, Package, TrendingDown } from 'lucide-react'
 
 // Helper functions to handle both old and new API response formats
 const getItemName = (item: any): string => {
@@ -10,7 +10,7 @@ const getItemName = (item: any): string => {
 const getItemSku = (item: any): string => {
   return item?.sku || item?.master_sku || item?.local_sku || 'N/A'
 }
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -226,24 +226,10 @@ export function PickItems() {
       </div>
 
       <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <History className="h-5 w-5" />
-                Recent Pick Transactions
-              </CardTitle>
-              <CardDescription>Last 10 pick transactions</CardDescription>
-            </div>
-            <Button onClick={handleOpenDialog} size="sm" className={COMPACT_PRIMARY_BUTTON_CLASS}>
-              <PackageMinus className="mr-2 h-4 w-4" />
-              Quick Pick
-            </Button>
-          </div>
-        </CardHeader>
+        <CardHeader className="pb-0" />
         <CardContent className="flex min-h-0 flex-1 flex-col">
-          <div className="mb-4">
-            <div className="relative">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Filter by item name, SKU, or notes..."
@@ -252,6 +238,10 @@ export function PickItems() {
                 className="pl-10"
               />
             </div>
+            <Button onClick={handleOpenDialog} size="sm" className={`${COMPACT_PRIMARY_BUTTON_CLASS} shrink-0`}>
+              <PackageMinus className="mr-2 h-4 w-4" />
+              Quick Pick
+            </Button>
           </div>
 
           {isLoading ? (
@@ -261,10 +251,10 @@ export function PickItems() {
               {filterText ? 'No matching transactions found' : 'No pick transactions yet'}
             </div>
           ) : (
-            <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/70">
-              <table className="w-full caption-bottom text-sm">
-                <thead className="[&_tr]:border-b">
-                  <tr className="border-b transition-colors">
+            <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/70 bg-background">
+              <table className="w-full border-collapse text-sm">
+                <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
+                  <tr className="border-b border-border transition-colors">
                     <th
                       className="h-12 px-4 text-left align-middle font-medium text-muted-foreground cursor-pointer hover:text-foreground"
                       onClick={() => handleSort('item')}
@@ -316,7 +306,7 @@ export function PickItems() {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="border-b transition-colors hover:bg-muted/50"
+                        className="border-b border-border transition-colors hover:bg-muted/50"
                       >
                         <td className="p-4 align-middle font-medium">
                           {itemName}

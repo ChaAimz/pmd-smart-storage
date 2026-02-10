@@ -1,7 +1,7 @@
-import { useState, useEffect, type MouseEvent as ReactMouseEvent } from 'react'
+import { useState, useEffect, useMemo, type MouseEvent as ReactMouseEvent } from 'react'
 import { motion } from 'framer-motion'
-import { Search, Plus, Edit, Trash2, Download, Filter, MoreVertical, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Search, Plus, Edit, Trash2, Filter, MoreVertical, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,7 +13,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import {
   DropdownMenu,
@@ -28,7 +27,6 @@ import * as api from '@/services/api'
 
 // Using api.Item type from services/api.ts
 
-const categories = ['All', 'Electronics', 'Clothing', 'Food', 'Tools', 'Hardware', 'Office Supplies', 'Other']
 type SortColumn = 'sku' | 'name' | 'category' | 'quantity' | 'reorder_point' | 'lead_time_days' | 'supplier_name' | 'status'
 type ColumnKey = SortColumn | 'actions'
 
@@ -57,8 +55,20 @@ const COLUMN_MIN_WIDTHS: Record<ColumnKey, number> = {
   actions: 84,
 }
 
+const getReadableTextColor = (hexColor: string) => {
+  const hex = (hexColor || '').replace('#', '')
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return '#FFFFFF'
+
+  const r = parseInt(hex.slice(0, 2), 16)
+  const g = parseInt(hex.slice(2, 4), 16)
+  const b = parseInt(hex.slice(4, 6), 16)
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  return luminance > 0.62 ? '#111827' : '#FFFFFF'
+}
+
 export function ManageItems() {
   const [items, setItems] = useState<api.Item[]>([])
+  const [categoryMaster, setCategoryMaster] = useState<api.Category[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState('All')
   const [selectedItem, setSelectedItem] = useState<api.Item | null>(null)
@@ -102,8 +112,23 @@ export function ManageItems() {
   useEffect(() => {
     async function fetchItems() {
       try {
-        const data = await api.getAllItems()
-        setItems(data)
+        const [itemsResult, categoriesResult] = await Promise.allSettled([
+          api.getAllItems(),
+          api.getCategories(true)
+        ])
+
+        if (itemsResult.status === 'fulfilled') {
+          setItems(itemsResult.value)
+        } else {
+          throw itemsResult.reason
+        }
+
+        if (categoriesResult.status === 'fulfilled') {
+          setCategoryMaster(categoriesResult.value)
+        } else {
+          setCategoryMaster([])
+          console.warn('Category master unavailable, fallback to item categories', categoriesResult.reason)
+        }
       } catch (error) {
         console.error('Error fetching items:', error)
         toast.error('Failed to load items')
@@ -116,6 +141,28 @@ export function ManageItems() {
   useEffect(() => {
     window.localStorage.setItem(COLUMN_WIDTH_STORAGE_KEY, JSON.stringify(columnWidths))
   }, [columnWidths])
+
+  const activeCategoryNames = useMemo(() => {
+    const activeFromMaster = categoryMaster
+      .filter((category) => category.is_active)
+      .map((category) => category.name)
+
+    if (activeFromMaster.length > 0) return activeFromMaster
+
+    return Array.from(
+      new Set(
+        items
+          .map((item) => (item.category || '').trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b))
+  }, [categoryMaster, items])
+
+  const filterCategoryOptions = useMemo(() => ['All', ...activeCategoryNames], [activeCategoryNames])
+
+  const categoryColorByName = useMemo(() => {
+    return new Map(categoryMaster.map((category) => [category.name, category.color || '#64748B']))
+  }, [categoryMaster])
 
   const tableMinWidth = Object.values(columnWidths).reduce((sum, width) => sum + width, 0)
 
@@ -252,28 +299,10 @@ export function ManageItems() {
     setSelectedItem(null)
   }
 
-  const handleExport = () => {
-    toast.success('Your data is being exported...')
-  }
-
   return (
     <div className="h-full min-h-0 overflow-y-auto lg:overflow-hidden">
       <div className="h-full min-h-0 flex flex-col gap-4 px-2.5 pt-2.5 pb-1.5 lg:px-3.5 lg:pt-3.5 lg:pb-2.5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Manage Items</h1>
-          <p className="text-muted-foreground">
-            View and manage your inventory items
-          </p>
-        </div>
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Add Item
-            </Button>
-          </DialogTrigger>
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Create New Item</DialogTitle>
@@ -297,7 +326,7 @@ export function ManageItems() {
                       className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       <option value="">Select category...</option>
-                      {categories.filter(c => c !== 'All').map((cat) => (
+                      {activeCategoryNames.map((cat) => (
                         <option key={cat} value={cat}>{cat}</option>
                       ))}
                     </select>
@@ -369,23 +398,28 @@ export function ManageItems() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
-      </div>
+      </Dialog>
 
-      {/* Filters and Search */}
-      <Card className="border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
-        <CardContent className="px-4 pb-4 pt-4">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search items by SKU or name..."
-                className="pl-10"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-2">
+      {/* Items Table */}
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
+        <CardHeader className="pb-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <CardTitle className="shrink-0">Manage Items</CardTitle>
+            <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-end lg:w-auto">
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                <Badge className="rounded-full bg-primary px-3 py-1 text-sm font-semibold text-primary-foreground hover:bg-primary">
+                  {filteredItems.length}
+                </Badge>
+              </div>
+              <div className="relative w-full sm:w-[420px]">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search items by SKU or name..."
+                  className="pl-10"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="gap-2">
@@ -396,7 +430,7 @@ export function ManageItems() {
                 <DropdownMenuContent>
                   <DropdownMenuLabel>Filter by Category</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {categories.map((cat) => (
+                  {filterCategoryOptions.map((cat) => (
                     <DropdownMenuItem
                       key={cat}
                       onClick={() => setSelectedCategory(cat)}
@@ -406,30 +440,17 @@ export function ManageItems() {
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button variant="outline" className="gap-2" onClick={handleExport}>
-                <Download className="h-4 w-4" />
-                Export
+              <Button className="gap-2" onClick={() => setShowCreateDialog(true)}>
+                <Plus className="h-4 w-4" />
+                Add New Item
               </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Items Table */}
-      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Items</CardTitle>
-              <CardDescription>
-                {filteredItems.length} item{filteredItems.length !== 1 ? 's' : ''} found
-              </CardDescription>
             </div>
           </div>
         </CardHeader>
         <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-0">
-          <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border/70">
-            <table className="w-full table-fixed" style={{ minWidth: `${tableMinWidth}px` }}>
+          <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/70 bg-background">
+            <div className="h-full overflow-auto">
+            <table className="w-full table-fixed border-collapse" style={{ minWidth: `${tableMinWidth}px` }}>
               <colgroup>
                 <col style={{ width: columnWidths.sku }} />
                 <col style={{ width: columnWidths.name }} />
@@ -441,8 +462,8 @@ export function ManageItems() {
                 <col style={{ width: columnWidths.status }} />
                 <col style={{ width: columnWidths.actions }} />
               </colgroup>
-              <thead>
-                <tr className="sticky top-0 z-10 border-b border-border bg-background/72 text-left text-sm text-muted-foreground backdrop-blur-xl supports-[backdrop-filter]:bg-background/55">
+              <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
+                <tr className="border-b border-border">
                   <th className="relative h-12 px-4 align-middle font-medium">
                     <button type="button" className="inline-flex items-center gap-1.5 hover:text-foreground" onClick={() => handleSort('sku')}>
                       SKU
@@ -571,7 +592,21 @@ export function ManageItems() {
                     </td>
                     <td className="px-4 py-3 font-medium">{itemName}</td>
                     <td className="px-4 py-3">
-                      <Badge variant="outline">{itemCategory}</Badge>
+                      {(() => {
+                        const categoryColor = categoryColorByName.get(itemCategory) || '#64748B'
+                        return (
+                      <Badge
+                        variant="outline"
+                        className="border-0"
+                        style={{
+                          backgroundColor: categoryColor,
+                          color: getReadableTextColor(categoryColor),
+                        }}
+                      >
+                        {itemCategory}
+                      </Badge>
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col">
@@ -619,6 +654,7 @@ export function ManageItems() {
                 )})}
               </tbody>
             </table>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -646,7 +682,7 @@ export function ManageItems() {
                     defaultValue={selectedItem.category}
                     className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
-                    {categories.filter(c => c !== 'All').map((cat) => (
+                    {activeCategoryNames.map((cat) => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
@@ -711,3 +747,4 @@ export function ManageItems() {
     </div>
   )
 }
+

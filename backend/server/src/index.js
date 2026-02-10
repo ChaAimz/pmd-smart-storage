@@ -56,10 +56,90 @@ async function tableExists(tableName) {
 // Initialize database
 const db = new Database('./data/warehouse.db', logger);
 db.initialize();
+bootstrapCategoryMaster().catch((error) => logger.error('Category bootstrap failed:', error));
 
 // Initialize services
 const inventoryService = new InventoryService(db, logger);
 const mqttHandler = new MqttHandler(inventoryService, logger);
+
+const DEFAULT_CATEGORY_DEFINITIONS = [
+  { name: 'Electronics', color: '#2563EB' },
+  { name: 'Clothing', color: '#DB2777' },
+  { name: 'Food', color: '#D97706' },
+  { name: 'Tools', color: '#7C3AED' },
+  { name: 'Hardware', color: '#475569' },
+  { name: 'Office Supplies', color: '#0891B2' },
+  { name: 'Other', color: '#64748B' }
+];
+
+function isHexColor(value) {
+  return typeof value === 'string' && /^#([0-9a-fA-F]{6})$/.test(value.trim());
+}
+
+function colorFromName(name) {
+  const normalized = String(name || '').trim().toLowerCase();
+  const predefined = DEFAULT_CATEGORY_DEFINITIONS.find((entry) => entry.name.toLowerCase() === normalized);
+  if (predefined) return predefined.color;
+
+  const palette = ['#2563EB', '#7C3AED', '#D97706', '#DB2777', '#0891B2', '#16A34A', '#475569'];
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(i)) % 2147483647;
+  }
+  return palette[Math.abs(hash) % palette.length];
+}
+
+async function bootstrapCategoryMaster(retriesLeft = 20) {
+  if (!db.isReady()) {
+    if (retriesLeft <= 0) {
+      logger.warn('Skipped category bootstrap because database is not ready');
+      return;
+    }
+    setTimeout(() => {
+      bootstrapCategoryMaster(retriesLeft - 1).catch((error) => {
+        logger.error('Category bootstrap retry failed:', error);
+      });
+    }, 250);
+    return;
+  }
+
+  try {
+    await db.run(`
+      CREATE TABLE IF NOT EXISTS categories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT UNIQUE NOT NULL,
+        color TEXT DEFAULT '#64748B',
+        is_active INTEGER DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    for (const category of DEFAULT_CATEGORY_DEFINITIONS) {
+      await db.run(
+        `INSERT OR IGNORE INTO categories (name, color, is_active) VALUES (?, ?, 1)`,
+        [category.name, category.color]
+      );
+    }
+
+    const legacyCategories = await db.all(`
+      SELECT DISTINCT TRIM(category) AS category_name
+      FROM items
+      WHERE category IS NOT NULL AND TRIM(category) <> ''
+    `);
+
+    for (const row of legacyCategories) {
+      await db.run(
+        `INSERT OR IGNORE INTO categories (name, color, is_active) VALUES (?, ?, 1)`,
+        [row.category_name, colorFromName(row.category_name)]
+      );
+    }
+
+    logger.info(`Category master bootstrapped (${legacyCategories.length} legacy categories merged)`);
+  } catch (error) {
+    logger.error('Failed to bootstrap category master:', error);
+  }
+}
 
 // Connect to MQTT broker
 const mqttClient = mqtt.connect(process.env.MQTT_BROKER_URL || 'mqtt://localhost:1883', {
@@ -340,6 +420,11 @@ app.post('/api/items', async (req, res) => {
       return res.status(400).json({ success: false, error: 'SKU, name, and category are required' });
     }
 
+    const categoryRecord = await getActiveCategoryByName(category);
+    if (!categoryRecord) {
+      return res.status(400).json({ success: false, error: 'Invalid category. Please select an active category from Settings > Category.' });
+    }
+
     const result = await new Promise((resolve, reject) => {
       db.db.run(`
         INSERT INTO items (
@@ -348,7 +433,7 @@ app.post('/api/items', async (req, res) => {
           unit_cost, supplier_name, supplier_contact
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
-        sku, name, description, category, unit || 'pcs', min_quantity || 0,
+        sku, name, description, categoryRecord.name, unit || 'pcs', min_quantity || 0,
         reorder_point || 0, reorder_quantity || 0, safety_stock || 0, lead_time_days || 7,
         unit_cost || 0, supplier_name, supplier_contact
       ], function(err) {
@@ -380,6 +465,14 @@ app.put('/api/items/:id', async (req, res) => {
     const fields = Object.keys(updates).filter(key => allowedFields.includes(key));
     if (fields.length === 0) {
       return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'category')) {
+      const categoryRecord = await getActiveCategoryByName(updates.category);
+      if (!categoryRecord) {
+        return res.status(400).json({ success: false, error: 'Invalid category. Please select an active category from Settings > Category.' });
+      }
+      updates.category = categoryRecord.name;
     }
 
     const setClause = fields.map(f => `${f} = ?`).join(', ');
@@ -699,6 +792,225 @@ app.get('/api/prs', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   }
 });
+
+// ==================== Category Master ====================
+app.get('/api/categories', async (req, res) => {
+  try {
+    const includeInactive = String(req.query.include_inactive || 'false').toLowerCase() === 'true';
+    const rows = await db.all(
+      `
+        SELECT
+          c.id,
+          c.name,
+          c.color,
+          c.is_active,
+          c.created_at,
+          c.updated_at,
+          COALESCE(ic.item_count, 0) AS item_count
+        FROM categories c
+        LEFT JOIN (
+          SELECT category, COUNT(*) AS item_count
+          FROM items
+          GROUP BY category
+        ) ic ON ic.category = c.name
+        ${includeInactive ? '' : 'WHERE c.is_active = 1'}
+        ORDER BY c.is_active DESC, c.name ASC
+      `
+    );
+
+    res.json({
+      success: true,
+      data: rows.map((row) => ({
+        ...row,
+        is_active: !!row.is_active,
+        item_count: Number(row.item_count || 0)
+      }))
+    });
+  } catch (error) {
+    logger.error('Error getting categories:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/categories', async (req, res) => {
+  try {
+    const name = String(req.body?.name || '').trim();
+    const color = isHexColor(req.body?.color) ? req.body.color.trim() : colorFromName(name);
+    const isActive = req.body?.is_active === undefined ? 1 : (req.body.is_active ? 1 : 0);
+
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'Category name is required' });
+    }
+
+    await db.run(
+      `
+        INSERT INTO categories (name, color, is_active)
+        VALUES (?, ?, ?)
+      `,
+      [name, color, isActive]
+    );
+
+    const created = await db.get('SELECT * FROM categories WHERE LOWER(name) = LOWER(?)', [name]);
+    res.status(201).json({ success: true, data: { ...created, is_active: !!created.is_active, item_count: 0 } });
+  } catch (error) {
+    if (String(error.message || '').includes('UNIQUE constraint failed')) {
+      return res.status(409).json({ success: false, error: 'Category name already exists' });
+    }
+    logger.error('Error creating category:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/categories/:id', async (req, res) => {
+  try {
+    const categoryId = parseInt(req.params.id, 10);
+    if (Number.isNaN(categoryId)) {
+      return res.status(400).json({ success: false, error: 'Invalid category id' });
+    }
+
+    const existing = await getCategoryById(categoryId);
+    if (!existing) {
+      return res.status(404).json({ success: false, error: 'Category not found' });
+    }
+
+    const nextName = req.body?.name !== undefined ? String(req.body.name || '').trim() : existing.name;
+    const nextColor = req.body?.color !== undefined ? String(req.body.color || '').trim() : existing.color;
+    const nextIsActive = req.body?.is_active !== undefined ? (req.body.is_active ? 1 : 0) : existing.is_active;
+
+    if (!nextName) {
+      return res.status(400).json({ success: false, error: 'Category name is required' });
+    }
+
+    if (!isHexColor(nextColor)) {
+      return res.status(400).json({ success: false, error: 'Color must be in hex format (#RRGGBB)' });
+    }
+
+    const duplicate = await db.get(
+      'SELECT id FROM categories WHERE LOWER(name) = LOWER(?) AND id <> ?',
+      [nextName, categoryId]
+    );
+    if (duplicate) {
+      return res.status(409).json({ success: false, error: 'Category name already exists' });
+    }
+
+    await db.run(
+      `
+        UPDATE categories
+        SET name = ?, color = ?, is_active = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `,
+      [nextName, nextColor, nextIsActive, categoryId]
+    );
+
+    if (nextName !== existing.name) {
+      await db.run('UPDATE items SET category = ? WHERE category = ?', [nextName, existing.name]);
+    }
+
+    const updated = await db.get(
+      `
+        SELECT
+          c.*,
+          (SELECT COUNT(*) FROM items i WHERE i.category = c.name) AS item_count
+        FROM categories c
+        WHERE c.id = ?
+      `,
+      [categoryId]
+    );
+
+    res.json({
+      success: true,
+      data: {
+        ...updated,
+        is_active: !!updated.is_active,
+        item_count: Number(updated.item_count || 0)
+      }
+    });
+  } catch (error) {
+    logger.error('Error updating category:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/categories/:id', async (req, res) => {
+  try {
+    const categoryId = parseInt(req.params.id, 10);
+    const replacementCategoryId = req.query.replacement_category_id
+      ? parseInt(req.query.replacement_category_id, 10)
+      : null;
+
+    if (Number.isNaN(categoryId)) {
+      return res.status(400).json({ success: false, error: 'Invalid category id' });
+    }
+
+    const category = await getCategoryById(categoryId);
+    if (!category) {
+      return res.status(404).json({ success: false, error: 'Category not found' });
+    }
+
+    const usageCount = await countItemsByCategoryName(category.name);
+
+    if (usageCount > 0 && !replacementCategoryId) {
+      return res.status(400).json({
+        success: false,
+        error: `Category "${category.name}" is in use by ${usageCount} item(s). Replacement category is required.`,
+        requires_replacement: true,
+        usage_count: usageCount
+      });
+    }
+
+    let replacement = null;
+    if (replacementCategoryId) {
+      if (Number.isNaN(replacementCategoryId) || replacementCategoryId === categoryId) {
+        return res.status(400).json({ success: false, error: 'Invalid replacement category' });
+      }
+
+      replacement = await getCategoryById(replacementCategoryId);
+      if (!replacement || !replacement.is_active) {
+        return res.status(400).json({ success: false, error: 'Replacement category must exist and be active' });
+      }
+    }
+
+    if (usageCount > 0 && replacement) {
+      await db.run('UPDATE items SET category = ? WHERE category = ?', [replacement.name, category.name]);
+    }
+
+    const remainingUsage = await countItemsByCategoryName(category.name);
+    if (remainingUsage > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Category "${category.name}" still has ${remainingUsage} linked item(s) and cannot be deleted`
+      });
+    }
+
+    await db.run('DELETE FROM categories WHERE id = ?', [categoryId]);
+    res.json({ success: true, data: { deleted_id: categoryId, migrated_to: replacement?.id || null } });
+  } catch (error) {
+    logger.error('Error deleting category:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+async function getCategoryById(categoryId) {
+  return db.get('SELECT * FROM categories WHERE id = ?', [categoryId]);
+}
+
+async function getActiveCategoryByName(categoryName) {
+  const normalized = String(categoryName || '').trim();
+  if (!normalized) return null;
+
+  return db.get(
+    'SELECT * FROM categories WHERE LOWER(name) = LOWER(?) AND is_active = 1',
+    [normalized]
+  );
+}
+
+async function countItemsByCategoryName(categoryName) {
+  const row = await db.get(
+    'SELECT COUNT(*) AS item_count FROM items WHERE category = ?',
+    [categoryName]
+  );
+  return Number(row?.item_count || 0);
+}
 
 app.get('/api/prs/:id', async (req, res) => {
   try {

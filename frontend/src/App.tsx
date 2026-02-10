@@ -41,6 +41,7 @@ const ManageLocations = lazy(async () => {
 const InventoryPlanning = lazy(() => import('./pages/InventoryPlanning'))
 const Profile = lazy(() => import('./pages/Profile'))
 const Login = lazy(() => import('./pages/Login'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 const PRList = lazy(async () => {
   const module = await import('./pages/PRList')
@@ -116,7 +117,7 @@ function App() {
               <Route path="planning" element={<InventoryPlanning />} />
               <Route path="profile" element={<Profile />} />
               <Route path="analytics" element={<div className="p-6">Analytics - Coming Soon</div>} />
-              <Route path="settings" element={<div className="p-6">Settings - Coming Soon</div>} />
+              <Route path="settings" element={<Settings />} />
               <Route path="prs" element={<PRList />} />
               <Route path="prs/create" element={<CreatePR />} />
               <Route path="prs/:id" element={<PRDetail />} />

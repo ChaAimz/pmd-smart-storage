@@ -111,21 +111,42 @@ const navSections: NavSection[] = [
   }
 ]
 
-export function Sidebar() {
+interface SidebarProps {
+  isCollapsed?: boolean
+  isDesktopSidebar?: boolean
+  isMobileOpen?: boolean
+  onNavigate?: () => void
+}
+
+export function Sidebar({
+  isCollapsed = false,
+  isDesktopSidebar = true,
+  isMobileOpen = false,
+  onNavigate,
+}: SidebarProps) {
   const location = useLocation()
 
   return (
-    <aside className="fixed left-0 top-16 z-30 h-[calc(100vh-4rem)] w-64 border-r border-border bg-card/50 backdrop-blur-sm">
-      <div className="flex h-full flex-col gap-1 p-4 overflow-y-auto">
-        <nav className="flex flex-col gap-6">
+    <aside
+      className={cn(
+        'fixed left-0 top-16 h-[calc(100vh-4rem)] border-r border-border bg-card/95 backdrop-blur-sm transition-all duration-300',
+        isDesktopSidebar
+          ? cn('z-30 translate-x-0', isCollapsed ? 'w-16' : 'w-64')
+          : cn('z-50 w-[17.5rem] max-w-[85vw]', isMobileOpen ? 'translate-x-0' : '-translate-x-full')
+      )}
+    >
+      <div className={cn('flex h-full flex-col gap-1 overflow-y-auto', isCollapsed ? 'p-2' : 'p-4')}>
+        <nav className={cn('flex flex-col', isCollapsed ? 'gap-3' : 'gap-6')}>
           {navSections.map((section, sectionIndex) => (
             <div key={section.title}>
               {/* Section Title */}
-              <div className="px-3 mb-2">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  {section.title}
-                </h3>
-              </div>
+              {!isCollapsed && (
+                <div className="mb-2 px-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {section.title}
+                  </h3>
+                </div>
+              )}
 
               {/* Section Items */}
               <div className="flex flex-col gap-1">
@@ -137,16 +158,19 @@ export function Sidebar() {
                     <Link
                       key={item.href}
                       to={item.href}
+                      title={item.title}
+                      onClick={onNavigate}
                       className={cn(
-                        'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all',
+                        'relative flex items-center rounded-lg text-sm font-medium transition-all',
+                        isCollapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5',
                         isActive
                           ? 'bg-primary text-primary-foreground shadow-sm'
                           : 'text-muted-foreground hover:bg-accent hover:text-foreground'
                       )}
                     >
                       <Icon className="h-4 w-4 flex-shrink-0" />
-                      <span className="flex-1">{item.title}</span>
-                      {item.badge && (
+                      {!isCollapsed && <span className="flex-1">{item.title}</span>}
+                      {!isCollapsed && item.badge && (
                         <span className={cn(
                           "px-2 py-0.5 text-xs font-semibold rounded-full",
                           isActive
@@ -163,20 +187,20 @@ export function Sidebar() {
 
               {/* Separator between sections (except last) */}
               {sectionIndex < navSections.length - 1 && (
-                <div className="my-3 border-t border-border" />
+                <div className={cn('border-t border-border', isCollapsed ? 'my-2' : 'my-3')} />
               )}
             </div>
           ))}
         </nav>
 
         {/* System Status at bottom */}
-        <div className="mt-auto pt-4 border-t border-border">
-          <div className="rounded-lg bg-muted/50 p-3">
-            <div className="space-y-2">
-              <h3 className="text-xs font-semibold">System Status</h3>
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-xs text-muted-foreground">All systems operational</span>
+        <div className={cn('mt-auto border-t border-border', isCollapsed ? 'pt-2' : 'pt-4')}>
+          <div className={cn('rounded-lg bg-muted/50', isCollapsed ? 'p-2' : 'p-3')}>
+            <div className={cn(isCollapsed ? 'flex justify-center' : 'space-y-2')}>
+              {!isCollapsed && <h3 className="text-xs font-semibold">System Status</h3>}
+              <div className={cn('flex items-center', isCollapsed ? 'justify-center' : 'gap-2')}>
+                <div className="h-2 w-2 animate-pulse rounded-full bg-green-500" />
+                {!isCollapsed && <span className="text-xs text-muted-foreground">All systems operational</span>}
               </div>
             </div>
           </div>

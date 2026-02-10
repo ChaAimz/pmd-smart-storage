@@ -361,10 +361,10 @@ export default function InventoryPlanning() {
                     {searchQuery ? 'No items found matching your search' : 'All items are well stocked'}
                   </div>
                 ) : (
-                  <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border/70">
-                    <table className="w-full min-w-[980px]">
-                      <thead>
-                        <tr className="sticky top-0 border-b bg-muted/50">
+                  <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/70 bg-background">
+                    <table className="w-full min-w-[980px] border-collapse">
+                      <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
+                        <tr className="border-b border-border">
                           <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
                             <input
                               type="checkbox"
@@ -504,10 +504,10 @@ export default function InventoryPlanning() {
                     No purchase orders yet
                   </div>
                 ) : (
-                  <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border/70">
-                    <table className="w-full min-w-[920px]">
-                      <thead>
-                        <tr className="sticky top-0 border-b bg-muted/50">
+                  <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/70 bg-background">
+                    <table className="w-full min-w-[920px] border-collapse">
+                      <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
+                        <tr className="border-b border-border">
                           <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
                             PO #
                           </th>
@@ -586,10 +586,10 @@ export default function InventoryPlanning() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-md border">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b bg-muted/50">
+            <div className="rounded-lg border border-border/70 bg-background">
+              <table className="w-full border-collapse">
+                <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
+                  <tr className="border-b border-border">
                     <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground text-sm">
                       Item
                     </th>

@@ -191,6 +191,45 @@ Button.displayName = 'Button'
 - If compact button classes are reused in multiple places, define local constants and reuse them for consistency.
 - Use richer color only for status signaling (for example ETA/status badges), not for baseline layout or standard action controls.
 
+### Manage Items Header Pattern (Required)
+- Keep `Manage Items` controls in a single header row:
+  - left: page title (`Manage Items`)
+  - right: item-count chip, search input, category filter, create button
+- Item-count chip style must be flat solid primary (`bg-primary text-primary-foreground`) with no border.
+- Chip size standard (global, all badge/chip usages including status columns): `px-3 py-1 text-sm` with rounded-full.
+- Global chip style baseline (all pages): flat style with no border (`border-0`).
+- Category filter button (`All` / selected category) must remain standard `outline` style (not primary-filled).
+- Do not show `found` text next to the item-count chip; show only the number.
+- Search input and controls should stay aligned to match the Receive page spacing language.
+
+### Table Style Baseline (Required)
+- All data tables across pages must follow the `Manage Items` table style as the canonical baseline.
+- Required table wrapper pattern:
+  - outer container: `rounded-lg border border-border/70 bg-background`
+  - inner scroll container for sticky headers
+- Required header style:
+  - `sticky top-0 z-10`
+  - `bg-muted/50`
+  - `backdrop-blur-xl`
+  - visible bottom border (`border-b border-border`)
+- Required body row style:
+  - `border-b border-border`
+  - hover state `hover:bg-muted/50`
+- Prefer shared `Table` primitives from `src/components/ui/table.tsx`; if raw `<table>` is required, mirror these classes exactly.
+
+### Category/Tag Governance (Required)
+- Keep `Category` as a controlled master list managed from `Settings > Category`.
+- Category management must support:
+  - create, rename, recolor, activate/deactivate
+  - usage count per category
+  - safe delete via replacement migration (cannot hard-delete while in use)
+- Delete flow rule:
+  - if usage count > 0, require selecting a replacement category and migrate all linked items first
+  - only allow hard-delete after usage count becomes 0
+- Prefer soft delete (`inactive`) as default for operational safety and auditability.
+- Use `Tag` as optional, free-form or semi-controlled metadata for flexible filtering/search (non-critical classification).
+- Reporting, stock policy, and procurement logic should rely on `Category` (controlled), not free-form tags.
+
 ### State Management
 - Local state: `useState`, `useReducer`
 - Global state: React Context

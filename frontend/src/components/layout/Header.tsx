@@ -1,5 +1,5 @@
 import { Bell, User, LogOut, Settings as SettingsIcon, Package } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -14,14 +14,58 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
-interface HeaderProps {
-  pageTitle?: string
-  pageDescription?: string
+const PATH_LABELS: Record<string, string> = {
+  '/': 'Dashboard',
+  '/receive': 'Receive Items',
+  '/pick': 'Pick Items',
+  '/adjust': 'Adjust Stock',
+  '/items': 'Manage Items',
+  '/locations': 'Manage Locations',
+  '/planning': 'Inventory Planning',
+  '/analytics': 'Analytics',
+  '/profile': 'Profile',
+  '/settings': 'Settings',
+  '/prs': 'Purchase Requisitions',
+  '/prs/create': 'Create PR',
 }
 
-export function Header({ pageTitle, pageDescription }: HeaderProps = {}) {
+const segmentTitle = (segment: string) =>
+  segment
+    .split('-')
+    .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+    .join(' ')
+
+const getCurrentPageLabel = (pathname: string) => {
+  if (PATH_LABELS[pathname]) return PATH_LABELS[pathname]
+
+  const segments = pathname.split('/').filter(Boolean)
+  if (segments.length >= 2 && segments[0] === 'prs' && /^\d+$/.test(segments[1])) {
+    if (segments[2] === 'receive') return 'PR Receive'
+    return 'PR Detail'
+  }
+
+  const lastSegment = segments[segments.length - 1]
+  return lastSegment ? segmentTitle(lastSegment) : 'Dashboard'
+}
+
+const toTitleCase = (value: string) =>
+  value
+    .split(/[_\s-]+/)
+    .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
+    .join(' ')
+
+interface HeaderProps {
+  isSidebarCollapsed: boolean
+  isDesktopSidebar: boolean
+  onSidebarToggle: () => void
+}
+
+export function Header({ isSidebarCollapsed, isDesktopSidebar, onSidebarToggle }: HeaderProps) {
   const { user, logout } = useAuth()
+  const location = useLocation()
   const navigate = useNavigate()
+  const departmentLabel = toTitleCase((user as any)?.department || user?.role || 'General')
+  const currentPageLabel = getCurrentPageLabel(location.pathname)
 
   const handleLogout = () => {
     logout()
@@ -29,37 +73,51 @@ export function Header({ pageTitle, pageDescription }: HeaderProps = {}) {
   }
 
   return (
-    <header className="fixed top-0 z-40 isolate w-full border-b border-border/90 bg-gradient-to-b from-background/92 to-muted/58 shadow-sm backdrop-blur-2xl supports-[backdrop-filter]:from-background/70 supports-[backdrop-filter]:to-muted/38">
-      <div className="flex h-16 items-center justify-between px-6">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
+    <header className="fixed top-0 z-40 isolate w-full border-b border-border bg-gradient-to-b from-background/92 to-muted/58 backdrop-blur-2xl supports-[backdrop-filter]:from-background/70 supports-[backdrop-filter]:to-muted/38">
+      <div
+        className={`grid h-16 items-center transition-[grid-template-columns] duration-300 ${
+          !isDesktopSidebar
+            ? 'grid-cols-[auto_minmax(0,1fr)_auto]'
+            : isSidebarCollapsed
+              ? 'grid-cols-[4rem_minmax(0,1fr)_auto]'
+              : 'grid-cols-[16rem_minmax(0,1fr)_auto]'
+        }`}
+      >
+        <div
+          className={`flex items-center ${
+            !isDesktopSidebar ? 'px-3' : isSidebarCollapsed ? 'justify-center px-2' : 'gap-4 px-6'
+          }`}
+        >
+          <button
+            type="button"
+            aria-label="Toggle sidebar"
+            onClick={onSidebarToggle}
+            className="flex items-center gap-2 rounded-lg outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary">
               <Package className="h-6 w-6 text-primary-foreground" />
             </div>
-            <div>
+            <div className={!isDesktopSidebar || isSidebarCollapsed ? 'hidden' : ''}>
               <h1 className="text-xl font-bold">Smart Storage</h1>
               <p className="text-xs text-muted-foreground">Inventory Management</p>
             </div>
-          </div>
+          </button>
         </div>
 
-        <div className="flex flex-1 items-center justify-center px-8">
-          {pageTitle && (
-            <div className="text-center">
-              <h2 className="text-xl font-semibold">{pageTitle}</h2>
-              {pageDescription && (
-                <p className="text-sm text-muted-foreground">{pageDescription}</p>
-              )}
-            </div>
-          )}
+        <div className={`min-w-0 ${isDesktopSidebar ? 'pl-3.5' : 'px-2'}`}>
+          <p className="truncate text-xs font-medium text-muted-foreground sm:text-sm">
+            <span className="text-foreground">{departmentLabel}</span>
+            <span className="px-1 text-muted-foreground">/</span>
+            <span className="text-foreground">{currentPageLabel}</span>
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center gap-1.5 ${isDesktopSidebar ? 'pr-6' : 'pr-3 sm:gap-2'}`}>
           <ThemeToggle />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
+              <Button variant="ghost" size="icon" className="relative h-9 w-9 sm:h-10 sm:w-10" aria-label="Notifications">
                 <Bell className="h-5 w-5" />
                 <Badge
                   variant="destructive"
@@ -98,7 +156,7 @@ export function Header({ pageTitle, pageDescription }: HeaderProps = {}) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 gap-2 px-2" aria-label="User menu">
+              <Button variant="ghost" className="relative h-9 gap-2 px-1.5 sm:h-10 sm:px-2" aria-label="User menu">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user?.avatarUrl} alt={user?.fullName} />
                   <AvatarFallback>
@@ -136,8 +194,6 @@ export function Header({ pageTitle, pageDescription }: HeaderProps = {}) {
           </DropdownMenu>
         </div>
       </div>
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border" />
-      <div className="pointer-events-none absolute inset-x-0 top-full h-2 bg-gradient-to-b from-black/10 to-transparent dark:from-black/35" />
     </header>
   )
 }

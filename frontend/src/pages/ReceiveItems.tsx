@@ -674,14 +674,15 @@ export function ReceiveItems() {
 
   return (
     <div className="h-full min-h-0 overflow-y-auto lg:overflow-hidden">
-      <div className="h-full min-h-0 flex flex-col gap-4 px-2.5 pt-2.5 pb-1.5 lg:px-3.5 lg:pt-3.5 lg:pb-2.5">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div className="flex h-full min-h-0 flex-col gap-3 px-2.5 py-2 sm:gap-3.5 sm:px-3 sm:py-2.5 lg:gap-4 lg:px-3.5 lg:py-3">
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-4 lg:overflow-visible lg:pb-0">
           <StatusCard
             title="Today Arrivals"
             value={todayPrGuide.length}
             description={`${todayPendingQuantity} units pending / ${todaySkuCount} lines`}
             icon={CalendarClock}
             accentClassName="text-sky-700 dark:text-sky-300"
+            className="min-w-[250px] snap-start lg:min-w-0"
           />
           <StatusCard
             title="Weekly Pipeline"
@@ -689,6 +690,7 @@ export function ReceiveItems() {
             description={`${weekPendingQuantity} units pending / ${weekSkuCount} lines`}
             icon={TrendingUp}
             accentClassName="text-cyan-700 dark:text-cyan-300"
+            className="min-w-[250px] snap-start lg:min-w-0"
           />
           <StatusCard
             title="Received Today"
@@ -696,6 +698,7 @@ export function ReceiveItems() {
             description={`${receivedToday.length} receive transactions`}
             icon={PackagePlus}
             accentClassName="text-emerald-700 dark:text-emerald-300"
+            className="min-w-[250px] snap-start lg:min-w-0"
           />
           <StatusCard
             title="Incoming Snapshot"
@@ -703,11 +706,12 @@ export function ReceiveItems() {
             description={`${incomingPrGuide.length} PR / ${incomingQuantity} units`}
             icon={Package}
             accentClassName="text-slate-700 dark:text-slate-300"
+            className="min-w-[250px] snap-start lg:min-w-0"
           />
         </div>
 
-        <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-3 lg:grid-rows-1">
-        <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
+        <div className="grid min-h-0 flex-1 gap-3.5 overflow-visible lg:grid-cols-3 lg:grid-rows-1 lg:overflow-hidden">
+        <Card className="flex min-h-[440px] flex-col overflow-hidden border-border/70 bg-background/90 lg:min-h-0 lg:h-full dark:border-border/60 dark:bg-background/70">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <CalendarClock className="h-4 w-4 text-blue-600 dark:text-blue-300" />
@@ -816,7 +820,7 @@ export function ReceiveItems() {
           </CardContent>
         </Card>
 
-        <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
+        <Card className="flex min-h-[440px] flex-col overflow-hidden border-border/70 bg-background/90 lg:min-h-0 lg:h-full dark:border-border/60 dark:bg-background/70">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <CalendarClock className="h-4 w-4 text-sky-600 dark:text-sky-300" />
@@ -925,8 +929,8 @@ export function ReceiveItems() {
           </CardContent>
         </Card>
 
-        <Card className="-mt-0.5 flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
-          <CardHeader className="relative pb-3 pr-36">
+        <Card className="flex min-h-[440px] flex-col overflow-hidden border-border/70 bg-background/90 lg:min-h-0 lg:h-full dark:border-border/60 dark:bg-background/70">
+          <CardHeader className="relative flex flex-col gap-2 pb-3 pr-0 sm:pr-36">
             <CardTitle className="flex items-center gap-2 text-base">
               <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
               Recent Receive
@@ -935,7 +939,7 @@ export function ReceiveItems() {
             <Button
               onClick={handleOpenDialog}
               size="sm"
-              className={`absolute right-6 top-6 ${COMPACT_PRIMARY_BUTTON_CLASS}`}
+              className={`w-full sm:absolute sm:right-6 sm:top-6 sm:w-auto ${COMPACT_PRIMARY_BUTTON_CLASS}`}
             >
               <PackagePlus className="mr-2 h-4 w-4" />
               Quick Receive
@@ -962,7 +966,7 @@ export function ReceiveItems() {
               </div>
             ) : (
               <div className="h-full min-h-0 overflow-auto rounded-lg border border-border/70">
-                <Table>
+                <Table className="min-w-[640px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Item</TableHead>
