@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { StatusCard } from '@/components/ui/status-card'
 import {
   Dialog,
   DialogContent,
@@ -35,7 +36,10 @@ import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePageContext } from '@/contexts/PageContext'
-import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts'
+
+const COMPACT_PRIMARY_BUTTON_CLASS = 'h-7 px-2.5 text-xs'
+const DIALOG_PRIMARY_BUTTON_CLASS = 'h-9 px-4'
+const DIALOG_OUTLINE_BUTTON_CLASS = 'h-9 px-4'
 
 export function AdjustStock() {
   const [items, setItems] = useState<api.Item[]>([])
@@ -184,56 +188,22 @@ export function AdjustStock() {
   const positiveAdjustments = transactions.filter(t => t.quantity > 0).length
   const negativeAdjustments = transactions.filter(t => t.quantity < 0).length
 
-  // Generate monthly data for charts (last 6 months)
-  const generateMonthlyData = () => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
-    return months.map((month) => ({
-      month,
-      value: Math.floor(Math.random() * 20) + 5
-    }))
-  }
-
-  const adjustmentChartData = generateMonthlyData()
-  const increaseChartData = generateMonthlyData()
-  const decreaseChartData = generateMonthlyData()
-
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-3">
+    <div className="h-full min-h-0 overflow-y-auto lg:overflow-hidden">
+      <div className="h-full min-h-0 flex flex-col gap-4 px-2.5 pt-2.5 pb-1.5 lg:px-3.5 lg:pt-3.5 lg:pb-2.5">
+      <div className="grid gap-4 md:grid-cols-3">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0 }}
         >
-          <Card className="border-2 border-blue-500/20 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Adjustments</CardTitle>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
-                      <LineChart data={adjustmentChartData}>
-                        <YAxis hide domain={['dataMin', 'dataMax']} />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#3b82f6"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-8 w-8 rounded-full bg-blue-500/10 flex items-center justify-center">
-                    <Settings className="h-4 w-4 text-blue-500" />
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-2xl font-bold">{totalAdjustments}</div>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Total Adjustments"
+            value={totalAdjustments}
+            description="All stock adjustment transactions"
+            icon={Settings}
+            accentClassName="text-blue-700 dark:text-blue-300"
+          />
         </motion.div>
 
         <motion.div
@@ -241,35 +211,14 @@ export function AdjustStock() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <Card className="border-2 border-green-500/20 bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Increases</CardTitle>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
-                      <LineChart data={increaseChartData}>
-                        <YAxis hide domain={['dataMin', 'dataMax']} />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#22c55e"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
-                    <TrendingUp className="h-4 w-4 text-green-500" />
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-2xl font-bold text-green-600">{positiveAdjustments}</div>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Increases"
+            value={positiveAdjustments}
+            description="Positive stock adjustments"
+            icon={TrendingUp}
+            accentClassName="text-emerald-700 dark:text-emerald-300"
+            valueClassName="text-emerald-600 dark:text-emerald-300"
+          />
         </motion.div>
 
         <motion.div
@@ -277,39 +226,18 @@ export function AdjustStock() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <Card className="border-2 border-red-500/20 bg-gradient-to-br from-red-50 to-white dark:from-red-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Decreases</CardTitle>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
-                      <LineChart data={decreaseChartData}>
-                        <YAxis hide domain={['dataMin', 'dataMax']} />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#ef4444"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-8 w-8 rounded-full bg-red-500/10 flex items-center justify-center">
-                    <TrendingDown className="h-4 w-4 text-red-500" />
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-2xl font-bold text-red-600">{negativeAdjustments}</div>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Decreases"
+            value={negativeAdjustments}
+            description="Negative stock adjustments"
+            icon={TrendingDown}
+            accentClassName="text-rose-700 dark:text-rose-300"
+            valueClassName="text-rose-600 dark:text-rose-300"
+          />
         </motion.div>
       </div>
 
-      <Card>
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -319,13 +247,13 @@ export function AdjustStock() {
               </CardTitle>
               <CardDescription>Last 10 stock adjustments</CardDescription>
             </div>
-            <Button onClick={handleOpenDialog} size="lg">
-              <Settings className="mr-2 h-5 w-5" />
+            <Button onClick={handleOpenDialog} size="sm" className={COMPACT_PRIMARY_BUTTON_CLASS}>
+              <Settings className="mr-2 h-4 w-4" />
               Quick Adjust
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex min-h-0 flex-1 flex-col">
           <div className="mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -341,11 +269,11 @@ export function AdjustStock() {
           {isLoading ? (
             <TableLoadingSkeleton />
           ) : filteredAndSortedTransactions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               {filterText ? 'No matching adjustments found' : 'No adjustments yet'}
             </div>
           ) : (
-            <div className="relative w-full overflow-auto">
+            <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/70">
               <table className="w-full caption-bottom text-sm">
                 <thead className="[&_tr]:border-b">
                   <tr className="border-b transition-colors">
@@ -430,6 +358,7 @@ export function AdjustStock() {
           )}
         </CardContent>
       </Card>
+      </div>
 
       <Dialog open={showAdjustDialog} onOpenChange={setShowAdjustDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -558,10 +487,10 @@ export function AdjustStock() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdjustDialog(false)}>
+            <Button variant="outline" className={DIALOG_OUTLINE_BUTTON_CLASS} onClick={() => setShowAdjustDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAdjust} disabled={!selectedItem || !quantity || !reason}>
+            <Button className={DIALOG_PRIMARY_BUTTON_CLASS} onClick={handleAdjust} disabled={!selectedItem || !quantity || !reason}>
               <Settings className="mr-2 h-4 w-4" />
               Confirm Adjustment
             </Button>

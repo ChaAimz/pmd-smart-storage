@@ -161,6 +161,36 @@ Button.displayName = 'Button'
   - `.focus-visible-ring` - Accessible focus states
   - `.badge-{success,warning,danger,info}` - Status badges
 
+### UI Style Baseline (Required)
+- Default design direction is shadcn/ui dashboard style (aligned with current `/receive` page).
+- Use local shadcn primitives from `src/components/ui/*` as default building blocks.
+- Standard page composition:
+  - KPI summary row
+  - Main operational cards/panels
+  - Structured data section (`Table`/`Tabs`) for logs or queue management
+- Preferred components: `Card`, `Badge`, `Tabs`, `Table`, `Dialog`, `Button`, `Input`, `Select`, `Textarea`.
+- Maintain a consistent visual language:
+  - Page frame spacing should follow Receive baseline:
+    `px-2.5 pt-2.5 pb-1.5 lg:px-3.5 lg:pt-3.5 lg:pb-2.5`
+  - Subtle gradient or layered background depth
+  - Strong information hierarchy and scan-friendly spacing
+  - Compact, operational dashboard density
+- For UI tasks, apply `../skills/shadcn-dashboard-ui/SKILL.md`.
+- Cross-reference style rules in `../docs/reference/UI_STYLE_GUIDE.md`.
+
+### Theme-Safe Styling Rules (Required)
+- Keep button tone consistent per page via shadcn variants (`default`, `outline`, `secondary`) instead of per-button hardcoded colors.
+- Keep button size consistent by pattern, not ad-hoc values:
+  - compact list actions: `h-7 px-2.5 text-xs`
+  - dialog/footer actions: `h-9 px-4`
+- Use `Quick Pick` (`/pick`) as the compact quick-action size reference for other pages.
+- Prefer semantic Tailwind tokens over fixed palette classes for core surfaces and controls:
+  - `bg-background`, `text-foreground`, `border-border`, `border-input`, `bg-muted`
+- Do not use hardcoded palette classes for reusable controls unless there is a clear state meaning.
+  - Avoid patterns like `bg-blue-*`, `bg-emerald-*`, `border-sky-*` on shared controls.
+- If compact button classes are reused in multiple places, define local constants and reuse them for consistency.
+- Use richer color only for status signaling (for example ETA/status badges), not for baseline layout or standard action controls.
+
 ### State Management
 - Local state: `useState`, `useReducer`
 - Global state: React Context

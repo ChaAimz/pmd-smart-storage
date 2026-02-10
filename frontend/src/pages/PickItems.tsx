@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { StatusCard } from '@/components/ui/status-card'
 import {
   Dialog,
   DialogContent,
@@ -28,7 +29,10 @@ import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import * as api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePageContext } from '@/contexts/PageContext'
-import { LineChart, Line, ResponsiveContainer, YAxis } from 'recharts'
+
+const COMPACT_PRIMARY_BUTTON_CLASS = 'h-7 px-2.5 text-xs'
+const DIALOG_PRIMARY_BUTTON_CLASS = 'h-9 px-4'
+const DIALOG_OUTLINE_BUTTON_CLASS = 'h-9 px-4'
 
 export function PickItems() {
   const [items, setItems] = useState<api.Item[]>([])
@@ -173,56 +177,22 @@ export function PickItems() {
     getItemSku(item).toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  // Generate monthly data for charts (last 6 months)
-  const generateMonthlyData = () => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun']
-    return months.map((month) => ({
-      month,
-      value: Math.floor(Math.random() * 20) + 5
-    }))
-  }
-
-  const pickChartData = generateMonthlyData()
-  const availableChartData = generateMonthlyData()
-  const lowStockChartData = generateMonthlyData()
-
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 md:grid-cols-3">
+    <div className="h-full min-h-0 overflow-y-auto lg:overflow-hidden">
+      <div className="h-full min-h-0 flex flex-col gap-4 px-2.5 pt-2.5 pb-1.5 lg:px-3.5 lg:pt-3.5 lg:pb-2.5">
+      <div className="grid gap-4 md:grid-cols-3">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0 }}
         >
-          <Card className="border-2 border-orange-500/20 bg-gradient-to-br from-orange-50 to-white dark:from-orange-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Today's Picks</CardTitle>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
-                      <LineChart data={pickChartData}>
-                        <YAxis hide domain={['dataMin', 'dataMax']} />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#f97316"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-8 w-8 rounded-full bg-orange-500/10 flex items-center justify-center">
-                    <PackageMinus className="h-4 w-4 text-orange-500" />
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-2xl font-bold">{transactions.length}</div>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Pick Transactions"
+            value={transactions.length}
+            description="Total pick transactions recorded"
+            icon={PackageMinus}
+            accentClassName="text-orange-700 dark:text-orange-300"
+          />
         </motion.div>
 
         <motion.div
@@ -230,35 +200,13 @@ export function PickItems() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <Card className="border-2 border-green-500/20 bg-gradient-to-br from-green-50 to-white dark:from-green-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Available Items</CardTitle>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
-                      <LineChart data={availableChartData}>
-                        <YAxis hide domain={['dataMin', 'dataMax']} />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#22c55e"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
-                    <Package className="h-4 w-4 text-green-500" />
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-2xl font-bold">{items.filter(i => i.quantity > 0).length}</div>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Available Items"
+            value={items.filter(i => i.quantity > 0).length}
+            description="Items currently in stock"
+            icon={Package}
+            accentClassName="text-emerald-700 dark:text-emerald-300"
+          />
         </motion.div>
 
         <motion.div
@@ -266,41 +214,18 @@ export function PickItems() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <Card className="border-2 border-yellow-500/20 bg-gradient-to-br from-yellow-50 to-white dark:from-yellow-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Low Stock</CardTitle>
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-48 min-h-[48px] min-w-[192px]">
-                    <ResponsiveContainer width="100%" height="100%" minWidth={192} minHeight={48}>
-                      <LineChart data={lowStockChartData}>
-                        <YAxis hide domain={['dataMin', 'dataMax']} />
-                        <Line
-                          type="monotone"
-                          dataKey="value"
-                          stroke="#eab308"
-                          strokeWidth={2}
-                          dot={false}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="h-8 w-8 rounded-full bg-yellow-500/10 flex items-center justify-center">
-                    <TrendingDown className="h-4 w-4 text-yellow-500" />
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="text-2xl font-bold text-yellow-600">
-                {items.filter(i => i.reorder_point && i.quantity < i.reorder_point).length}
-              </div>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Low Stock"
+            value={items.filter(i => i.reorder_point && i.quantity < i.reorder_point).length}
+            description="Items below reorder point"
+            icon={TrendingDown}
+            accentClassName="text-amber-700 dark:text-amber-300"
+            valueClassName="text-amber-600 dark:text-amber-300"
+          />
         </motion.div>
       </div>
 
-      <Card>
+      <Card className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -310,13 +235,13 @@ export function PickItems() {
               </CardTitle>
               <CardDescription>Last 10 pick transactions</CardDescription>
             </div>
-            <Button onClick={handleOpenDialog} size="lg">
-              <PackageMinus className="mr-2 h-5 w-5" />
+            <Button onClick={handleOpenDialog} size="sm" className={COMPACT_PRIMARY_BUTTON_CLASS}>
+              <PackageMinus className="mr-2 h-4 w-4" />
               Quick Pick
             </Button>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex min-h-0 flex-1 flex-col">
           <div className="mb-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -332,11 +257,11 @@ export function PickItems() {
           {isLoading ? (
             <TableLoadingSkeleton />
           ) : filteredAndSortedTransactions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               {filterText ? 'No matching transactions found' : 'No pick transactions yet'}
             </div>
           ) : (
-            <div className="relative w-full overflow-auto">
+            <div className="min-h-0 flex-1 overflow-auto rounded-lg border border-border/70">
               <table className="w-full caption-bottom text-sm">
                 <thead className="[&_tr]:border-b">
                   <tr className="border-b transition-colors">
@@ -419,6 +344,7 @@ export function PickItems() {
           )}
         </CardContent>
       </Card>
+      </div>
 
       <Dialog open={showPickDialog} onOpenChange={setShowPickDialog}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
@@ -520,10 +446,10 @@ export function PickItems() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPickDialog(false)}>
+            <Button variant="outline" className={DIALOG_OUTLINE_BUTTON_CLASS} onClick={() => setShowPickDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handlePick} disabled={!selectedItem || !quantity}>
+            <Button className={DIALOG_PRIMARY_BUTTON_CLASS} onClick={handlePick} disabled={!selectedItem || !quantity}>
               <PackageMinus className="mr-2 h-4 w-4" />
               Confirm Pick
             </Button>

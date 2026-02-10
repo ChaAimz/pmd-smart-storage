@@ -46,6 +46,7 @@ Technical reference documentation:
 | [WEB_UI_MESH_DETAILS.md](reference/WEB_UI_MESH_DETAILS.md) | Web UI mesh details |
 | [GPIO5_BUTTON_WIRING.md](reference/GPIO5_BUTTON_WIRING.md) | Button wiring guide |
 | [DASHBOARD_DRAG_DROP.md](reference/DASHBOARD_DRAG_DROP.md) | Dashboard drag-drop feature |
+| [UI_STYLE_GUIDE.md](reference/UI_STYLE_GUIDE.md) | Frontend UI style and theme-safe design rules |
 
 ## 🔧 Troubleshooting
 

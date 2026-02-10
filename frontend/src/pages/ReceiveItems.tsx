@@ -3,9 +3,17 @@ import { motion } from 'framer-motion'
 import {
   Search,
   PackagePlus,
-  History,
   CalendarClock,
   CalendarDays,
+  Package,
+  TrendingUp,
+  Activity,
+  Clock3,
+  Timer,
+  AlertTriangle,
+  CheckCircle2,
+  XCircle,
+  Hash,
 } from 'lucide-react'
 
 interface ItemLike {
@@ -86,12 +94,117 @@ const toFiniteNumber = (value: unknown, fallback = 0): number => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
 }
+
+const formatPrStatus = (status?: string): string => {
+  if (!status) return 'Ordered'
+  return status
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+}
+
+const getPrStatusBadgeClass = (status?: string): string => {
+  switch (status) {
+    case 'partially_received':
+      return 'border-border bg-amber-50 text-amber-700 dark:border-border dark:bg-amber-950/50 dark:text-amber-200'
+    case 'fully_received':
+      return 'border-border bg-emerald-50 text-emerald-700 dark:border-border dark:bg-emerald-950/50 dark:text-emerald-200'
+    case 'cancelled':
+      return 'border-border bg-rose-50 text-rose-700 dark:border-border dark:bg-rose-950/50 dark:text-rose-200'
+    case 'ordered':
+    default:
+      return 'border-border bg-blue-50 text-blue-700 dark:border-border dark:bg-blue-950/50 dark:text-blue-200'
+  }
+}
+
+const getPrStatusIcon = (status?: string) => {
+  switch (status) {
+    case 'fully_received':
+      return CheckCircle2
+    case 'cancelled':
+      return XCircle
+    case 'partially_received':
+      return Timer
+    case 'ordered':
+    default:
+      return Clock3
+  }
+}
+
+const getEtaMeta = (expectedDate?: string | null) => {
+  const date = parseDateOnly(expectedDate)
+  const displayDate = date ? date.toLocaleDateString('en-US') : '-'
+
+  if (!date) {
+    return {
+      displayDate,
+      hint: 'No ETA',
+      hintIcon: AlertTriangle,
+      etaBadgeClass: 'border-border text-muted-foreground',
+      hintBadgeClass: 'bg-muted text-muted-foreground',
+    }
+  }
+
+  const today = startOfDay(new Date())
+  const target = startOfDay(date)
+  const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+
+  if (diffDays < 0) {
+    return {
+      displayDate,
+      hint: 'Delayed',
+      hintIcon: AlertTriangle,
+      etaBadgeClass: 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200',
+      hintBadgeClass: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200',
+    }
+  }
+
+  if (diffDays === 0) {
+    return {
+      displayDate,
+      hint: 'Today',
+      hintIcon: Timer,
+      etaBadgeClass: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200',
+      hintBadgeClass: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-200',
+    }
+  }
+
+  if (diffDays === 1) {
+    return {
+      displayDate,
+      hint: 'Tomorrow',
+      hintIcon: Clock3,
+      etaBadgeClass: 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200',
+      hintBadgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200',
+    }
+  }
+
+  if (diffDays <= 3) {
+    return {
+      displayDate,
+      hint: `In ${diffDays} days`,
+      hintIcon: Clock3,
+      etaBadgeClass: 'border-blue-300 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-200',
+      hintBadgeClass: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200',
+    }
+  }
+
+  return {
+    displayDate,
+    hint: 'Scheduled',
+    hintIcon: Clock3,
+    etaBadgeClass: 'border-border bg-muted/40 text-foreground',
+    hintBadgeClass: 'bg-muted text-muted-foreground',
+  }
+}
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { StatusCard } from '@/components/ui/status-card'
 import {
   Dialog,
   DialogContent,
@@ -129,6 +242,11 @@ interface PRReceiveDialogItem {
   remaining_quantity: number
   receive_quantity: number
 }
+
+const COMPACT_PRIMARY_BUTTON_CLASS = 'h-7 px-2.5 text-xs'
+const COMPACT_OUTLINE_BUTTON_CLASS = 'h-7 px-2.5 text-xs'
+const DIALOG_PRIMARY_BUTTON_CLASS = 'h-9 px-4'
+const DIALOG_OUTLINE_BUTTON_CLASS = 'h-9 px-4'
 
 export function ReceiveItems() {
   const [items, setItems] = useState<api.Item[]>([])
@@ -532,11 +650,64 @@ export function ReceiveItems() {
 
   const todaySkuCount = filteredTodayPrGuide.reduce((sum, pr) => sum + pr.items.length, 0)
   const weekSkuCount = filteredWeekPrGuide.reduce((sum, pr) => sum + pr.items.length, 0)
+  const todayPendingQuantity = todayPrGuide.reduce(
+    (sum, pr) => sum + pr.items.reduce((itemSum, item) => itemSum + item.remainingQuantity, 0),
+    0
+  )
+  const weekPendingQuantity = weekPrGuide.reduce(
+    (sum, pr) => sum + pr.items.reduce((itemSum, item) => itemSum + item.remainingQuantity, 0),
+    0
+  )
+  const incomingLineCount = incomingPrGuide.reduce((sum, pr) => sum + pr.items.length, 0)
+  const incomingQuantity = incomingPrGuide.reduce(
+    (sum, pr) => sum + pr.items.reduce((itemSum, item) => itemSum + item.remainingQuantity, 0),
+    0
+  )
+  const receivedToday = useMemo(() => {
+    const today = startOfDay(new Date())
+    return transactions.filter((txn) => {
+      const createdAt = startOfDay(new Date(txn.created_at))
+      return createdAt.getTime() === today.getTime()
+    })
+  }, [transactions])
+  const receivedTodayQuantity = receivedToday.reduce((sum, txn) => sum + txn.quantity, 0)
 
   return (
-     <div className="h-[calc(100dvh-8rem)] min-h-0 overflow-hidden">
-      <div className="grid h-full min-h-0 gap-4 overflow-hidden lg:grid-cols-3 lg:grid-rows-1">
-        <Card className="flex h-full min-h-0 flex-col overflow-hidden border-blue-200/60 bg-gradient-to-b from-blue-50/40 to-background dark:border-blue-900/50 dark:from-blue-950/30 dark:to-background">
+    <div className="h-full min-h-0 overflow-y-auto lg:overflow-hidden">
+      <div className="h-full min-h-0 flex flex-col gap-4 px-2.5 pt-2.5 pb-1.5 lg:px-3.5 lg:pt-3.5 lg:pb-2.5">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <StatusCard
+            title="Today Arrivals"
+            value={todayPrGuide.length}
+            description={`${todayPendingQuantity} units pending / ${todaySkuCount} lines`}
+            icon={CalendarClock}
+            accentClassName="text-sky-700 dark:text-sky-300"
+          />
+          <StatusCard
+            title="Weekly Pipeline"
+            value={weekPrGuide.length}
+            description={`${weekPendingQuantity} units pending / ${weekSkuCount} lines`}
+            icon={TrendingUp}
+            accentClassName="text-cyan-700 dark:text-cyan-300"
+          />
+          <StatusCard
+            title="Received Today"
+            value={receivedTodayQuantity}
+            description={`${receivedToday.length} receive transactions`}
+            icon={PackagePlus}
+            accentClassName="text-emerald-700 dark:text-emerald-300"
+          />
+          <StatusCard
+            title="Incoming Snapshot"
+            value={incomingLineCount}
+            description={`${incomingPrGuide.length} PR / ${incomingQuantity} units`}
+            icon={Package}
+            accentClassName="text-slate-700 dark:text-slate-300"
+          />
+        </div>
+
+        <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-3 lg:grid-rows-1">
+        <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <CalendarClock className="h-4 w-4 text-blue-600 dark:text-blue-300" />
@@ -544,7 +715,7 @@ export function ReceiveItems() {
             </CardTitle>
             <CardDescription>{filteredTodayPrGuide.length} PR / {todaySkuCount} items</CardDescription>
           </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col pt-0">
+          <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-0">
             {isLoadingPrGuide ? (
               <TableLoadingSkeleton />
             ) : (
@@ -556,7 +727,7 @@ export function ReceiveItems() {
                       placeholder="Search PR number, item, or SKU..."
                       value={todayPrFilterText}
                       onChange={(e) => setTodayPrFilterText(e.target.value)}
-                      className="border-blue-200 bg-white/70 pl-10 dark:border-blue-700 dark:bg-blue-950/30"
+                      className="border-input bg-background/80 pl-10 dark:border-input dark:bg-background/70"
                     />
                   </div>
                 </div>
@@ -567,54 +738,77 @@ export function ReceiveItems() {
                   </div>
                 ) : (
                   <div className="min-h-0 flex-1 space-y-2 overflow-y-scroll pr-2 [scrollbar-gutter:stable]">
-                    {filteredTodayPrGuide.map((pr, index) => (
-                      <motion.div
-                        key={pr.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.04 }}
-                        className="rounded-lg border border-blue-200/70 bg-blue-50/70 p-3 dark:border-blue-800/70 dark:bg-blue-950/45"
-                      >
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">{pr.prNumber}</p>
-                          <Badge variant="outline" className="border-blue-300 bg-white/70 text-[10px] text-blue-800 dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-100">
-                            {pr.status}
-                          </Badge>
-                        </div>
-                        <p className="mb-2 text-[11px] text-blue-700 dark:text-blue-300">
-                          ETA {parseDateOnly(pr.expectedDate)?.toLocaleDateString('en-US') || '-'}
-                        </p>
-                        <div className="space-y-1">
-                          {pr.items.map((item) => (
-                            <div
-                              key={`${pr.id}-${item.sku}-${item.itemName}`}
-                              className="text-xs text-blue-950/90 dark:text-blue-100/90"
+                    {filteredTodayPrGuide.map((pr, index) => {
+                      const etaMeta = getEtaMeta(pr.expectedDate)
+                      const StatusIcon = getPrStatusIcon(pr.status)
+                      const EtaHintIcon = etaMeta.hintIcon
+
+                      return (
+                        <motion.div
+                          key={pr.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.04 }}
+                          className="rounded-lg border border-border/70 bg-muted/35 p-3 dark:border-border/60 dark:bg-muted/20"
+                        >
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <p className="flex items-center gap-1.5 text-sm font-semibold text-blue-900 dark:text-blue-100">
+                              <Package className="h-3.5 w-3.5" />
+                              {pr.prNumber}
+                            </p>
+                            <Badge variant="outline" className={`text-[10px] ${getPrStatusBadgeClass(pr.status)}`}>
+                              <StatusIcon className="mr-1 h-3 w-3" />
+                              {formatPrStatus(pr.status)}
+                            </Badge>
+                          </div>
+                          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                            <Badge variant="outline" className={`h-6 gap-1 rounded-md px-2 text-[11px] ${etaMeta.etaBadgeClass}`}>
+                              <CalendarDays className="h-3.5 w-3.5" />
+                              ETA {etaMeta.displayDate}
+                            </Badge>
+                            <Badge variant="secondary" className={`h-6 gap-1 rounded-md px-2 text-[11px] ${etaMeta.hintBadgeClass}`}>
+                              <EtaHintIcon className="h-3.5 w-3.5" />
+                              {etaMeta.hint}
+                            </Badge>
+                          </div>
+                          <div className="space-y-1">
+                            {pr.items.map((item) => (
+                              <div
+                                key={`${pr.id}-${item.sku}-${item.itemName}`}
+                                className="flex items-center gap-1.5 text-xs text-blue-950/90 dark:text-blue-100/90"
+                              >
+                                <Package className="h-3.5 w-3.5 text-muted-foreground/80" />
+                                <span>{item.itemName} ({item.sku}) x</span>
+                                <Badge className="h-5 bg-emerald-500 px-2 text-[11px] text-white hover:bg-emerald-500">
+                                  <Hash className="mr-1 h-3 w-3" />
+                                  {item.remainingQuantity}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-3 flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              className={COMPACT_PRIMARY_BUTTON_CLASS}
+                              onClick={() => openPrReceiveDialog(pr)}
+                              disabled={isLoadingPrReceiveDetail}
                             >
-                              {item.itemName} ({item.sku}) x {item.remainingQuantity}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            className="h-7 bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400"
-                            onClick={() => openPrReceiveDialog(pr)}
-                            disabled={isLoadingPrReceiveDetail}
-                          >
-                            Receive
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 border-blue-300 text-blue-800 hover:bg-blue-100 dark:border-blue-700 dark:text-blue-100 dark:hover:bg-blue-900/40"
-                            onClick={() => openMoveEtaDialog(pr)}
-                          >
-                            <CalendarDays className="mr-1 h-3.5 w-3.5" />
-                            Change ETA
-                          </Button>
-                        </div>
-                      </motion.div>
-                    ))}
+                              <PackagePlus className="mr-1 h-3.5 w-3.5" />
+                              Receive
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className={COMPACT_OUTLINE_BUTTON_CLASS}
+                              onClick={() => openMoveEtaDialog(pr)}
+                            >
+                              <CalendarDays className="mr-1 h-3.5 w-3.5" />
+                              Change ETA
+                            </Button>
+                          </div>
+                        </motion.div>
+                      )
+                    })}
                   </div>
                 )}
               </>
@@ -622,7 +816,7 @@ export function ReceiveItems() {
           </CardContent>
         </Card>
 
-        <Card className="flex h-full min-h-0 flex-col overflow-hidden border-sky-200/60 bg-gradient-to-b from-sky-50/40 to-background dark:border-sky-900/50 dark:from-sky-950/30 dark:to-background">
+        <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-base">
               <CalendarClock className="h-4 w-4 text-sky-600 dark:text-sky-300" />
@@ -630,7 +824,7 @@ export function ReceiveItems() {
             </CardTitle>
             <CardDescription>{filteredWeekPrGuide.length} PR / {weekSkuCount} items</CardDescription>
           </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col pt-0">
+          <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-0">
             {isLoadingPrGuide ? (
               <TableLoadingSkeleton />
             ) : (
@@ -642,7 +836,7 @@ export function ReceiveItems() {
                       placeholder="Search PR number, item, or SKU..."
                       value={weeklyPrFilterText}
                       onChange={(e) => setWeeklyPrFilterText(e.target.value)}
-                      className="border-sky-200 bg-white/70 pl-10 dark:border-sky-700 dark:bg-sky-950/30"
+                      className="border-input bg-background/80 pl-10 dark:border-input dark:bg-background/70"
                     />
                   </div>
                 </div>
@@ -653,54 +847,77 @@ export function ReceiveItems() {
                   </div>
                 ) : (
                   <div className="min-h-0 flex-1 space-y-2 overflow-y-scroll pr-2 [scrollbar-gutter:stable]">
-                    {filteredWeekPrGuide.map((pr, index) => (
-                      <motion.div
-                        key={pr.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.04 }}
-                        className="rounded-lg border border-sky-200/70 bg-sky-50/70 p-3 dark:border-sky-800/70 dark:bg-sky-950/45"
-                      >
-                        <div className="mb-1 flex items-center justify-between gap-2">
-                          <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">{pr.prNumber}</p>
-                          <Badge variant="outline" className="border-sky-300 bg-white/70 text-[10px] text-sky-800 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-100">
-                            {pr.status}
-                          </Badge>
-                        </div>
-                        <p className="mb-2 text-[11px] text-sky-700 dark:text-sky-300">
-                          ETA {parseDateOnly(pr.expectedDate)?.toLocaleDateString('en-US') || '-'}
-                        </p>
-                        <div className="space-y-1">
-                          {pr.items.map((item) => (
-                            <div
-                              key={`${pr.id}-${item.sku}-${item.itemName}`}
-                              className="text-xs text-sky-950/90 dark:text-sky-100/90"
+                    {filteredWeekPrGuide.map((pr, index) => {
+                      const etaMeta = getEtaMeta(pr.expectedDate)
+                      const StatusIcon = getPrStatusIcon(pr.status)
+                      const EtaHintIcon = etaMeta.hintIcon
+
+                      return (
+                        <motion.div
+                          key={pr.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.04 }}
+                          className="rounded-lg border border-border/70 bg-muted/35 p-3 dark:border-border/60 dark:bg-muted/20"
+                        >
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <p className="flex items-center gap-1.5 text-sm font-semibold text-sky-900 dark:text-sky-100">
+                              <Package className="h-3.5 w-3.5" />
+                              {pr.prNumber}
+                            </p>
+                            <Badge variant="outline" className={`text-[10px] ${getPrStatusBadgeClass(pr.status)}`}>
+                              <StatusIcon className="mr-1 h-3 w-3" />
+                              {formatPrStatus(pr.status)}
+                            </Badge>
+                          </div>
+                          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                            <Badge variant="outline" className={`h-6 gap-1 rounded-md px-2 text-[11px] ${etaMeta.etaBadgeClass}`}>
+                              <CalendarDays className="h-3.5 w-3.5" />
+                              ETA {etaMeta.displayDate}
+                            </Badge>
+                            <Badge variant="secondary" className={`h-6 gap-1 rounded-md px-2 text-[11px] ${etaMeta.hintBadgeClass}`}>
+                              <EtaHintIcon className="h-3.5 w-3.5" />
+                              {etaMeta.hint}
+                            </Badge>
+                          </div>
+                          <div className="space-y-1">
+                            {pr.items.map((item) => (
+                              <div
+                                key={`${pr.id}-${item.sku}-${item.itemName}`}
+                                className="flex items-center gap-1.5 text-xs text-sky-950/90 dark:text-sky-100/90"
+                              >
+                                <Package className="h-3.5 w-3.5 text-muted-foreground/80" />
+                                <span>{item.itemName} ({item.sku}) x</span>
+                                <Badge className="h-5 bg-emerald-500 px-2 text-[11px] text-white hover:bg-emerald-500">
+                                  <Hash className="mr-1 h-3 w-3" />
+                                  {item.remainingQuantity}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-3 flex items-center gap-2">
+                            <Button
+                              size="sm"
+                              className={COMPACT_PRIMARY_BUTTON_CLASS}
+                              onClick={() => openPrReceiveDialog(pr)}
+                              disabled={isLoadingPrReceiveDetail}
                             >
-                              {item.itemName} ({item.sku}) x {item.remainingQuantity}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-3 flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            className="h-7 bg-sky-600 text-white hover:bg-sky-700 dark:bg-sky-500 dark:hover:bg-sky-400"
-                            onClick={() => openPrReceiveDialog(pr)}
-                            disabled={isLoadingPrReceiveDetail}
-                          >
-                            Receive
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="h-7 border-sky-300 text-sky-800 hover:bg-sky-100 dark:border-sky-700 dark:text-sky-100 dark:hover:bg-sky-900/40"
-                            onClick={() => openMoveEtaDialog(pr)}
-                          >
-                            <CalendarDays className="mr-1 h-3.5 w-3.5" />
-                            Change ETA
-                          </Button>
-                        </div>
-                      </motion.div>
-                    ))}
+                              <PackagePlus className="mr-1 h-3.5 w-3.5" />
+                              Receive
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className={COMPACT_OUTLINE_BUTTON_CLASS}
+                              onClick={() => openMoveEtaDialog(pr)}
+                            >
+                              <CalendarDays className="mr-1 h-3.5 w-3.5" />
+                              Change ETA
+                            </Button>
+                          </div>
+                        </motion.div>
+                      )
+                    })}
                   </div>
                 )}
               </>
@@ -708,31 +925,31 @@ export function ReceiveItems() {
           </CardContent>
         </Card>
 
-        <Card className="flex h-full min-h-0 flex-col overflow-hidden">
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <History className="h-4 w-4" />
-                  Recent Receive
-                </CardTitle>
-                <CardDescription>List view with filters</CardDescription>
-              </div>
-              <Button onClick={handleOpenDialog} size="sm">
-                <PackagePlus className="mr-2 h-4 w-4" />
-                Quick Receive
-              </Button>
-            </div>
+        <Card className="-mt-0.5 flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
+          <CardHeader className="relative pb-3 pr-36">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+              Recent Receive
+            </CardTitle>
+            <CardDescription>{filteredTransactions.length} transactions</CardDescription>
+            <Button
+              onClick={handleOpenDialog}
+              size="sm"
+              className={`absolute right-6 top-6 ${COMPACT_PRIMARY_BUTTON_CLASS}`}
+            >
+              <PackagePlus className="mr-2 h-4 w-4" />
+              Quick Receive
+            </Button>
           </CardHeader>
-          <CardContent className="flex min-h-0 flex-1 flex-col pt-0">
+          <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-0">
             <div className="mb-3">
               <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-emerald-500/80 dark:text-emerald-300/80" />
                 <Input
                   placeholder="Filter by item name, SKU, or notes..."
                   value={filterText}
                   onChange={(e) => setFilterText(e.target.value)}
-                  className="pl-10"
+                  className="w-full border-input bg-background/80 pl-10 dark:border-input dark:bg-background/70"
                 />
               </div>
             </div>
@@ -744,40 +961,48 @@ export function ReceiveItems() {
                 {filterText ? 'No matching transactions found' : 'No receive transactions yet'}
               </div>
             ) : (
-              <div className="h-full min-h-0 space-y-2 overflow-y-scroll pr-2 [scrollbar-gutter:stable]">
-                {filteredTransactions.map((txn, index) => {
-                  const fallbackItem = items.find(i => i.id === txn.item_id)
-                  const itemName = txn.item_name || getItemName(fallbackItem)
-                  const itemSku = txn.sku || getItemSku(fallbackItem)
+              <div className="h-full min-h-0 overflow-auto rounded-lg border border-border/70">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Item</TableHead>
+                      <TableHead className="w-[88px]">Qty</TableHead>
+                      <TableHead>Notes</TableHead>
+                      <TableHead className="w-[158px]">Time</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredTransactions.map((txn) => {
+                      const fallbackItem = items.find(i => i.id === txn.item_id)
+                      const itemName = txn.item_name || getItemName(fallbackItem)
+                      const itemSku = txn.sku || getItemSku(fallbackItem)
 
-                  return (
-                    <motion.div
-                      key={txn.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.02 }}
-                      className="rounded-lg border border-border/70 bg-card p-3 dark:border-slate-700 dark:bg-slate-900/40"
-                    >
-                      <div className="mb-2 flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium">{itemName}</p>
-                          <p className="text-xs text-muted-foreground">SKU: {itemSku}</p>
-                        </div>
-                        <Badge variant="default" className="bg-green-500">
-                          +{txn.quantity}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{txn.notes || '-'}</p>
-                      <p className="mt-1 text-[11px] text-muted-foreground">
-                        {new Date(txn.created_at).toLocaleString()}
-                      </p>
-                    </motion.div>
-                  )
-                })}
+                      return (
+                        <TableRow key={txn.id}>
+                          <TableCell>
+                            <p className="font-medium">{itemName}</p>
+                            <p className="text-xs text-muted-foreground">{itemSku}</p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className="bg-emerald-500 text-white hover:bg-emerald-500">
+                              <Hash className="mr-1 h-3 w-3" />
+                              {txn.quantity}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{txn.notes || '-'}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {new Date(txn.created_at).toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>
         </Card>
+        </div>
       </div>
 
       <Dialog
@@ -804,13 +1029,13 @@ export function ReceiveItems() {
           </DialogHeader>
 
           {isLoadingPrReceiveDetail ? (
-            <div className="py-6">
+            <div className="py-4">
               <TableLoadingSkeleton />
             </div>
           ) : (
-            <div className="flex max-h-[60vh] min-h-0 flex-col gap-4 overflow-hidden">
+            <div className="flex max-h-[60vh] min-h-0 flex-col gap-3 overflow-hidden">
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="pr-po-number">Supplier PO Number (Optional)</Label>
                   <Input
                     id="pr-po-number"
@@ -819,7 +1044,7 @@ export function ReceiveItems() {
                     onChange={(e) => setPrReceivePoNumber(e.target.value)}
                   />
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="pr-receive-date">Receive Date *</Label>
                   <Input
                     id="pr-receive-date"
@@ -830,7 +1055,7 @@ export function ReceiveItems() {
                 </div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label htmlFor="pr-receive-notes">Receive Notes (Optional)</Label>
                 <Textarea
                   id="pr-receive-notes"
@@ -841,13 +1066,13 @@ export function ReceiveItems() {
                 />
               </div>
 
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
+              <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
                 {prReceiveItems.map((item) => (
                   <div
                     key={item.pr_item_id}
-                    className="rounded-lg border border-border/70 bg-card p-3 dark:border-slate-700 dark:bg-slate-900/40"
+                    className="rounded-lg border border-border/70 bg-card p-2.5 dark:border-slate-700 dark:bg-slate-900/40"
                   >
-                    <div className="mb-2 flex items-start justify-between gap-3">
+                    <div className="mb-1.5 flex items-start justify-between gap-2.5">
                       <div>
                         <p className="text-sm font-medium">{item.item_name}</p>
                         <p className="text-xs text-muted-foreground">SKU: {item.sku}</p>
@@ -860,7 +1085,7 @@ export function ReceiveItems() {
                       <p>Requested: {item.requested_quantity}</p>
                       <p>Already received: {item.already_received_quantity}</p>
                     </div>
-                    <div className="mt-3 space-y-1">
+                    <div className="mt-2 space-y-1">
                       <Label htmlFor={`receive-qty-${item.pr_item_id}`}>Receive Quantity</Label>
                       <Input
                         id={`receive-qty-${item.pr_item_id}`}
@@ -875,17 +1100,18 @@ export function ReceiveItems() {
                 ))}
               </div>
 
-              <div className="rounded-md border border-border/70 bg-muted/40 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900/40">
+              <div className="rounded-md border border-border/70 bg-muted/40 px-2.5 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900/40">
                 {prReceiveItems.length} items selected / Total receive qty {totalPrReceiveQuantity}
               </div>
             </div>
           )}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPrReceiveDialog(false)}>
+            <Button variant="outline" className={DIALOG_OUTLINE_BUTTON_CLASS} onClick={() => setShowPrReceiveDialog(false)}>
               Cancel
             </Button>
             <Button
+              className={DIALOG_PRIMARY_BUTTON_CLASS}
               onClick={handleConfirmPrReceive}
               disabled={isLoadingPrReceiveDetail || isSubmittingPrReceive || prReceiveItems.length === 0}
             >
@@ -918,8 +1144,8 @@ export function ReceiveItems() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="space-y-1.5">
               <Label htmlFor="new-eta-date">New ETA Date *</Label>
               <Input
                 id="new-eta-date"
@@ -928,7 +1154,7 @@ export function ReceiveItems() {
                 onChange={(e) => setEtaDate(e.target.value)}
               />
             </div>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <Label htmlFor="eta-reason">Reason (Optional)</Label>
               <Textarea
                 id="eta-reason"
@@ -941,10 +1167,10 @@ export function ReceiveItems() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowMoveEtaDialog(false)}>
+            <Button variant="outline" className={DIALOG_OUTLINE_BUTTON_CLASS} onClick={() => setShowMoveEtaDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleMoveEta} disabled={isSubmittingMoveEta || !etaDate}>
+            <Button className={DIALOG_PRIMARY_BUTTON_CLASS} onClick={handleMoveEta} disabled={isSubmittingMoveEta || !etaDate}>
               {isSubmittingMoveEta ? 'Changing...' : 'Change ETA'}
             </Button>
           </DialogFooter>
@@ -963,8 +1189,8 @@ export function ReceiveItems() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="space-y-1.5">
               <Label>Search Item (Name or SKU)</Label>
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -980,7 +1206,7 @@ export function ReceiveItems() {
             {searchQuery && (
               <div className="border rounded-lg max-h-60 overflow-y-auto">
                 {filteredItems.length === 0 ? (
-                  <div className="p-4 text-center text-muted-foreground">
+                  <div className="p-3 text-center text-muted-foreground">
                     No items found
                   </div>
                 ) : (
@@ -988,7 +1214,7 @@ export function ReceiveItems() {
                     {filteredItems.slice(0, 10).map((item) => (
                       <div
                         key={item.id}
-                        className={`p-3 cursor-pointer hover:bg-accent transition-colors ${
+                        className={`p-2.5 cursor-pointer hover:bg-accent transition-colors ${
                           selectedItem?.id === item.id ? 'bg-accent' : ''
                         }`}
                         onClick={() => handleSelectItem(item)}
@@ -1015,7 +1241,7 @@ export function ReceiveItems() {
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="space-y-4 p-4 border rounded-lg bg-accent/50"
+                className="space-y-3 rounded-lg border bg-accent/50 p-3"
               >
                 <div>
                   <Label className="text-xs text-muted-foreground">Selected Item</Label>
@@ -1024,7 +1250,7 @@ export function ReceiveItems() {
                   <p className="text-sm">Current Stock: {selectedItem.quantity} units</p>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="quantity">Quantity to Receive *</Label>
                   <Input
                     id="quantity"
@@ -1036,7 +1262,7 @@ export function ReceiveItems() {
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="notes">Notes (Optional)</Label>
                   <Input
                     id="notes"
@@ -1050,10 +1276,10 @@ export function ReceiveItems() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReceiveDialog(false)}>
+            <Button variant="outline" className={DIALOG_OUTLINE_BUTTON_CLASS} onClick={() => setShowReceiveDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleReceive} disabled={!selectedItem || !quantity}>
+            <Button className={DIALOG_PRIMARY_BUTTON_CLASS} onClick={handleReceive} disabled={!selectedItem || !quantity}>
               <PackagePlus className="mr-2 h-4 w-4" />
               Confirm Receive
             </Button>

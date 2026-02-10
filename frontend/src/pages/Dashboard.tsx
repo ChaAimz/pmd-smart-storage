@@ -31,6 +31,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
+import { StatusCard } from '@/components/ui/status-card'
 
 import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
@@ -259,83 +260,52 @@ export function Dashboard() {
       >
         {/* Hero Stats Cards */}
         <div key="stats-1">
-          <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 h-full">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Items</CardTitle>
-                <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-muted-foreground drag-handle cursor-move" />
-                  <div className="h-10 w-10 rounded-lg bg-blue-500 flex items-center justify-center">
-                    <Package className="h-5 w-5 text-white" />
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-blue-900 dark:text-blue-100">{totalItems}</div>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Unique SKUs in inventory</p>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Total Items"
+            value={totalItems}
+            description="Unique SKUs in inventory"
+            icon={Package}
+            className="h-full"
+            accentClassName="text-blue-700 dark:text-blue-300"
+            headerRight={<GripVertical className="h-4 w-4 text-muted-foreground drag-handle cursor-move" />}
+          />
         </div>
 
         <div key="stats-2">
-          <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 h-full">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-green-600 dark:text-green-400">Total Stock</CardTitle>
-                <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-muted-foreground drag-handle cursor-move" />
-                  <div className="h-10 w-10 rounded-lg bg-green-500 flex items-center justify-center">
-                    <TrendingUp className="h-5 w-5 text-white" />
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-green-900 dark:text-green-100">{totalStock.toLocaleString()}</div>
-              <p className="text-xs text-green-600 dark:text-green-400 mt-1">Units in warehouse</p>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Total Stock"
+            value={totalStock.toLocaleString()}
+            description="Units in warehouse"
+            icon={TrendingUp}
+            className="h-full"
+            accentClassName="text-emerald-700 dark:text-emerald-300"
+            headerRight={<GripVertical className="h-4 w-4 text-muted-foreground drag-handle cursor-move" />}
+          />
         </div>
 
         <div key="stats-3">
-          <Card className="bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 h-full">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-amber-600 dark:text-amber-400">Low Stock</CardTitle>
-                <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-muted-foreground drag-handle cursor-move" />
-                  <div className="h-10 w-10 rounded-lg bg-amber-500 flex items-center justify-center">
-                    <AlertTriangle className="h-5 w-5 text-white" />
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-amber-900 dark:text-amber-100">{lowStockItems.length}</div>
-              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">Items need reordering</p>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Low Stock"
+            value={lowStockItems.length}
+            description="Items need reordering"
+            icon={AlertTriangle}
+            className="h-full"
+            accentClassName="text-amber-700 dark:text-amber-300"
+            valueClassName="text-amber-600 dark:text-amber-300"
+            headerRight={<GripVertical className="h-4 w-4 text-muted-foreground drag-handle cursor-move" />}
+          />
         </div>
 
         <div key="stats-4">
-          <Card className="bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800 h-full">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-purple-600 dark:text-purple-400">Inventory Value</CardTitle>
-                <div className="flex items-center gap-2">
-                  <GripVertical className="h-4 w-4 text-muted-foreground drag-handle cursor-move" />
-                  <div className="h-10 w-10 rounded-lg bg-purple-500 flex items-center justify-center">
-                    <BarChart3 className="h-5 w-5 text-white" />
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-purple-900 dark:text-purple-100">฿{totalValue.toLocaleString()}</div>
-              <p className="text-xs text-purple-600 dark:text-purple-400 mt-1">Total stock value</p>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Inventory Value"
+            value={`฿${totalValue.toLocaleString()}`}
+            description="Total stock value"
+            icon={BarChart3}
+            className="h-full"
+            accentClassName="text-violet-700 dark:text-violet-300"
+            headerRight={<GripVertical className="h-4 w-4 text-muted-foreground drag-handle cursor-move" />}
+          />
         </div>
 
         {/* PO Alert & Critical Time */}

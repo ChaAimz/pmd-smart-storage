@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
+import { StatusCard } from '@/components/ui/status-card'
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,8 @@ import * as api from '@/services/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
+
+const COMPACT_PRIMARY_BUTTON_CLASS = 'h-7 px-2.5 text-xs'
 
 export default function InventoryPlanning() {
   const [lowStockItems, setLowStockItems] = useState<api.Item[]>([])
@@ -208,20 +211,27 @@ export default function InventoryPlanning() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Inventory Planning</h1>
-            <p className="text-muted-foreground">Monitor stock levels and manage reorder points</p>
+      <div className="h-full min-h-0 overflow-y-auto lg:overflow-hidden">
+        <div className="h-full min-h-0 flex flex-col gap-4 px-2.5 pt-2.5 pb-1.5 lg:px-3.5 lg:pt-3.5 lg:pb-2.5">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold">Inventory Planning</h1>
+              <p className="text-muted-foreground">Monitor stock levels and manage reorder points</p>
+            </div>
           </div>
+          <Card className="border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
+            <CardContent className="p-4">
+              <TableLoadingSkeleton rows={8} />
+            </CardContent>
+          </Card>
         </div>
-        <TableLoadingSkeleton rows={8} />
       </div>
     )
   }
 
   return (
-    <div className="w-full min-w-0 space-y-6">
+    <div className="h-full min-h-0 overflow-y-auto lg:overflow-hidden">
+      <div className="h-full min-h-0 flex min-w-0 flex-col gap-4 px-2.5 pt-2.5 pb-1.5 lg:px-3.5 lg:pt-3.5 lg:pb-2.5">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -229,37 +239,31 @@ export default function InventoryPlanning() {
           <p className="text-muted-foreground">Monitor stock levels and manage purchase orders</p>
         </div>
         <Button
-          size="lg"
+          size="sm"
           onClick={() => setShowCreatePODialog(true)}
           disabled={selectedItems.length === 0}
-          className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700"
+          className={COMPACT_PRIMARY_BUTTON_CLASS}
         >
-          <Plus className="mr-2 h-5 w-5" />
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
           Create PO ({selectedItems.length})
         </Button>
       </div>
 
       {/* Overview Cards */}
-      <div className="grid gap-6 md:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0 }}
         >
-          <Card className="border-2 border-yellow-500/20 bg-gradient-to-br from-yellow-50 to-white dark:from-yellow-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Low Stock Items</CardTitle>
-                <div className="h-10 w-10 rounded-full bg-yellow-500/10 flex items-center justify-center">
-                  <TrendingDown className="h-5 w-5 text-yellow-500" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-yellow-600">{lowStockItems.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">Items below reorder point</p>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Low Stock Items"
+            value={lowStockItems.length}
+            description="Items below reorder point"
+            icon={TrendingDown}
+            accentClassName="text-amber-700 dark:text-amber-300"
+            valueClassName="text-amber-600 dark:text-amber-300"
+          />
         </motion.div>
 
         <motion.div
@@ -267,20 +271,14 @@ export default function InventoryPlanning() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <Card className="border-2 border-red-500/20 bg-gradient-to-br from-red-50 to-white dark:from-red-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Critical Items</CardTitle>
-                <div className="h-10 w-10 rounded-full bg-red-500/10 flex items-center justify-center">
-                  <AlertCircle className="h-5 w-5 text-red-500" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-red-600">{criticalItems.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">Urgent reordering needed</p>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Critical Items"
+            value={criticalItems.length}
+            description="Urgent reordering needed"
+            icon={AlertCircle}
+            accentClassName="text-rose-700 dark:text-rose-300"
+            valueClassName="text-rose-600 dark:text-rose-300"
+          />
         </motion.div>
 
         <motion.div
@@ -288,20 +286,13 @@ export default function InventoryPlanning() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <Card className="border-2 border-purple-500/20 bg-gradient-to-br from-purple-50 to-white dark:from-purple-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Reorder Value</CardTitle>
-                <div className="h-10 w-10 rounded-full bg-purple-500/10 flex items-center justify-center">
-                  <DollarSign className="h-5 w-5 text-purple-500" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">฿{totalLowStockValue.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground mt-1">Estimated reorder cost</p>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Reorder Value"
+            value={`฿${totalLowStockValue.toLocaleString()}`}
+            description="Estimated reorder cost"
+            icon={DollarSign}
+            accentClassName="text-violet-700 dark:text-violet-300"
+          />
         </motion.div>
 
         <motion.div
@@ -309,26 +300,19 @@ export default function InventoryPlanning() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
         >
-          <Card className="border-2 border-blue-500/20 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/20 dark:to-background">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Purchase Orders</CardTitle>
-                <div className="h-10 w-10 rounded-full bg-blue-500/10 flex items-center justify-center">
-                  <FileText className="h-5 w-5 text-blue-500" />
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{purchaseOrders.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">Total POs created</p>
-            </CardContent>
-          </Card>
+          <StatusCard
+            title="Purchase Orders"
+            value={purchaseOrders.length}
+            description="Total POs created"
+            icon={FileText}
+            accentClassName="text-blue-700 dark:text-blue-300"
+          />
         </motion.div>
       </div>
 
 
       {/* Tabs */}
-      <Tabs defaultValue="low-stock" className="space-y-6">
+      <Tabs defaultValue="low-stock" className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden">
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="low-stock" className="gap-2">
             <AlertTriangle className="h-4 w-4" />
@@ -341,14 +325,15 @@ export default function InventoryPlanning() {
         </TabsList>
 
         {/* Low Stock Items Tab */}
-        <TabsContent value="low-stock" className="space-y-4">
+        <TabsContent value="low-stock" className="mt-0 min-h-0 flex-1 overflow-hidden">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
+            className="h-full min-h-0"
           >
-            <Card>
-              <CardHeader>
+            <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
+              <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="flex items-center gap-2">
@@ -370,16 +355,16 @@ export default function InventoryPlanning() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-0">
                 {filteredAndSortedItems.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
+                  <div className="flex min-h-0 flex-1 items-center justify-center py-12 text-center text-muted-foreground">
                     {searchQuery ? 'No items found matching your search' : 'All items are well stocked'}
                   </div>
                 ) : (
-                  <div className="rounded-md border">
-                    <table className="w-full">
+                  <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border/70">
+                    <table className="w-full min-w-[980px]">
                       <thead>
-                        <tr className="border-b bg-muted/50">
+                        <tr className="sticky top-0 border-b bg-muted/50">
                           <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
                             <input
                               type="checkbox"
@@ -498,30 +483,31 @@ export default function InventoryPlanning() {
 
 
         {/* Purchase Orders Tab */}
-        <TabsContent value="purchase-orders" className="space-y-4">
+        <TabsContent value="purchase-orders" className="mt-0 min-h-0 flex-1 overflow-hidden">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
+            className="h-full min-h-0"
           >
-            <Card>
-              <CardHeader>
+            <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
+              <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2">
                   <ClipboardList className="h-5 w-5 text-blue-500" />
                   Purchase Orders
                 </CardTitle>
                 <CardDescription>Manage and track purchase orders</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-0">
                 {purchaseOrders.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground">
+                  <div className="flex min-h-0 flex-1 items-center justify-center py-12 text-center text-muted-foreground">
                     No purchase orders yet
                   </div>
                 ) : (
-                  <div className="rounded-md border">
-                    <table className="w-full">
+                  <div className="min-h-0 flex-1 overflow-auto rounded-md border border-border/70">
+                    <table className="w-full min-w-[920px]">
                       <thead>
-                        <tr className="border-b bg-muted/50">
+                        <tr className="sticky top-0 border-b bg-muted/50">
                           <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
                             PO #
                           </th>
@@ -665,12 +651,13 @@ export default function InventoryPlanning() {
             <Button variant="outline" onClick={() => setShowCreatePODialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreatePO} className="bg-gradient-to-r from-purple-500 to-purple-600">
+            <Button onClick={handleCreatePO}>
               Create Purchase Order
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   )
 }

@@ -349,6 +349,34 @@ Replace `YOUR_PC_IP` with your PC's actual IP address.
    - `@/` maps to `./src`
    - Configured in `vite.config.ts` and `tsconfig.json`
 
+5. **UI Style Memory (Shadcn Standard)**:
+   - Use **shadcn/ui components** as the primary building blocks for page UI.
+   - Summary/status cards must follow a single shared pattern via `frontend/src/components/ui/status-card.tsx`.
+   - Status card pattern: neutral border (`border-border/70`), same internal spacing, icon + title in header line, value line (`text-2xl`), helper text (`text-xs`).
+   - Apply the same status-card visual pattern across pages (Receive, Pick, Adjust, Inventory Planning, Dashboard and future pages with summary cards).
+   - Keep quick-action button size consistent with compact pattern used in operations pages (`h-7 px-2.5 text-xs`) unless there is a deliberate exception.
+   - Keep page spacing consistent with full-content pages using the shared layout spacing pattern already established in `Layout.tsx`.
+
+5. **UI Design Baseline (Required)**:
+   - Default UI direction for new pages or redesigns is **shadcn/ui dashboard style** (similar to `/receive` redesign).
+   - Prioritize clear dashboard composition: KPI summary row, primary operational panels, and structured activity log.
+   - Prefer local shadcn UI components in `frontend/src/components/ui/*` over custom raw markup.
+   - Use `Card`, `Badge`, `Tabs`, `Table`, `Dialog`, `Button`, `Input`, `Select`, `Textarea` as first-choice primitives.
+   - Use Receive spacing as the baseline page frame for content margin/padding:
+     `px-2.5 pt-2.5 pb-1.5 lg:px-3.5 lg:pt-3.5 lg:pb-2.5`.
+   - Keep visual language consistent: subtle gradient backgrounds, strong hierarchy, and compact operational spacing.
+   - For UI tasks, follow the project skill at `skills/shadcn-dashboard-ui/SKILL.md`.
+
+6. **Theme-Safe UI Styling (Required)**:
+   - All actionable buttons in the same view must use one tone system from shadcn variants (`default`/`outline`/`secondary`), not mixed hardcoded colors.
+   - Button sizes must follow a consistent page scale (for example `compact` list actions vs `dialog` footer actions), not ad-hoc per button.
+   - Avoid hardcoded palette classes for reusable controls (`bg-blue-*`, `bg-emerald-*`, `border-sky-*`) when theme tokens are available.
+   - Prefer semantic tokens so future theme switch is low-impact: `bg-background`, `text-foreground`, `border-border`, `border-input`, `bg-muted`.
+   - If a compact button style is reused in a page, define shared class constants (for example `COMPACT_PRIMARY_BUTTON_CLASS`) and reuse them.
+   - Recommended default mapping for dashboard pages: `compact = h-7 px-2.5 text-xs`, `dialog/action = h-9 px-4`.
+   - Use `/pick` page `Quick Pick` button as the visual size reference for compact quick-action buttons across pages.
+   - Keep status highlighting (ETA/state badges) expressive, but isolate to status elements only; base layout/control surfaces stay theme-driven.
+
 ### Backend (JavaScript/Node.js)
 
 1. **Module Pattern**: CommonJS (`require`/`module.exports`)
@@ -507,6 +535,8 @@ After running `npm run seed` in the backend:
 | Factory Reset | `docs/guides/FACTORY_RESET_GUIDE.md`, `docs/troubleshooting/FACTORY_RESET_IMPLEMENTATION.md` |
 | BLE Mesh Storage | `docs/reference/BLE_MESH_STORAGE.md`, `docs/guides/MESH_STORAGE_GUIDE.md` |
 | Frontend Guide | `frontend/AGENTS.md` |
+| UI Design Skill | `skills/shadcn-dashboard-ui/SKILL.md` |
+| UI Style Guide | `docs/reference/UI_STYLE_GUIDE.md` |
 
 ## Useful Commands Summary
 

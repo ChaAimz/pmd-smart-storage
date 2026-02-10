@@ -29,7 +29,7 @@ export function Header({ pageTitle, pageDescription }: HeaderProps = {}) {
   }
 
   return (
-    <header className="fixed top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="fixed top-0 z-40 isolate w-full border-b border-border/90 bg-gradient-to-b from-background/92 to-muted/58 shadow-sm backdrop-blur-2xl supports-[backdrop-filter]:from-background/70 supports-[backdrop-filter]:to-muted/38">
       <div className="flex h-16 items-center justify-between px-6">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
@@ -136,6 +136,8 @@ export function Header({ pageTitle, pageDescription }: HeaderProps = {}) {
           </DropdownMenu>
         </div>
       </div>
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-border" />
+      <div className="pointer-events-none absolute inset-x-0 top-full h-2 bg-gradient-to-b from-black/10 to-transparent dark:from-black/35" />
     </header>
   )
 }
