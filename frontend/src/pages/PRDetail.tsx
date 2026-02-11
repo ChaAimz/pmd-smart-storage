@@ -23,6 +23,8 @@ const getItemSku = (item: ItemLike): string => {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { PRPriorityBadge } from '@/components/ui/pr-priority-badge';
+import { PRStatusBadge } from '@/components/ui/pr-status-badge';
 import { H1, Lead } from '@/components/ui/typography';
 import { 
   FileText, 
@@ -190,46 +192,6 @@ export function PRDetail() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    const styles: Record<string, string> = {
-      ordered: 'bg-green-100 text-green-800',
-      partially_received: 'bg-blue-100 text-blue-800',
-      fully_received: 'bg-gray-100 text-gray-800',
-      cancelled: 'bg-red-100 text-red-800'
-    };
-    return styles[status] || 'bg-gray-100';
-  };
-
-  const getStatusText = (status: string) => {
-    const texts: Record<string, string> = {
-      ordered: 'Ordered',
-      partially_received: 'Partially Received',
-      fully_received: 'Fully Received',
-      cancelled: 'Cancelled'
-    };
-    return texts[status] || status;
-  };
-
-  const getPriorityBadge = (priority: string) => {
-    const styles: Record<string, string> = {
-      low: 'bg-gray-100 text-gray-800',
-      normal: 'bg-blue-100 text-blue-800',
-      high: 'bg-orange-100 text-orange-800',
-      urgent: 'bg-red-100 text-red-800'
-    };
-    return styles[priority] || 'bg-gray-100';
-  };
-
-  const getPriorityText = (priority: string) => {
-    const texts: Record<string, string> = {
-      low: 'Low',
-      normal: 'Normal',
-      high: 'High',
-      urgent: 'Urgent'
-    };
-    return texts[priority] || priority;
-  };
-
   const canReceive = (status: string) => {
     return status === 'ordered' || status === 'partially_received';
   };
@@ -273,12 +235,8 @@ export function PRDetail() {
               <div className="flex items-center gap-2">
                 <FileText className="w-5 h-5 text-blue-500" />
                 <span className="font-semibold text-xl">{pr.pr_number}</span>
-                <Badge className={getStatusBadge(pr.status)}>
-                  {getStatusText(pr.status)}
-                </Badge>
-                <Badge className={getPriorityBadge(pr.priority)}>
-                  {getPriorityText(pr.priority)}
-                </Badge>
+                <PRStatusBadge status={pr.status} />
+                <PRPriorityBadge priority={pr.priority} />
               </div>
               <div className="text-sm text-gray-500">
                 Created on {new Date(pr.created_at).toLocaleDateString('th-TH')}

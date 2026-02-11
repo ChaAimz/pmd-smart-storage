@@ -40,8 +40,6 @@ import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
 import { H1, Lead } from '@/components/ui/typography'
 
-const COMPACT_PRIMARY_BUTTON_CLASS = 'h-8 px-3 text-xs'
-
 export default function InventoryPlanning() {
   const [lowStockItems, setLowStockItems] = useState<api.Item[]>([])
   const [purchaseOrders, setPurchaseOrders] = useState<api.PurchaseOrder[]>([])
@@ -242,12 +240,7 @@ export default function InventoryPlanning() {
           <H1 className="text-3xl">Inventory Planning</H1>
           <Lead>Monitor stock levels and manage purchase orders</Lead>
         </div>
-        <Button
-          size="sm"
-          onClick={() => setShowCreatePODialog(true)}
-          disabled={selectedItems.length === 0}
-          className={COMPACT_PRIMARY_BUTTON_CLASS}
-        >
+        <Button onClick={() => setShowCreatePODialog(true)} disabled={selectedItems.length === 0}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />
           Create PO ({selectedItems.length})
         </Button>
@@ -367,7 +360,7 @@ export default function InventoryPlanning() {
                 ) : (
                   <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/70 bg-background">
                     <div className="h-full overflow-auto">
-                    <table className="w-full min-w-[980px] border-collapse">
+                    <table className="w-full min-w-[980px] border-collapse text-sm">
                       <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
                         <tr className="border-b border-border">
                           <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
@@ -511,7 +504,7 @@ export default function InventoryPlanning() {
                 ) : (
                   <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/70 bg-background">
                     <div className="h-full overflow-auto">
-                    <table className="w-full min-w-[920px] border-collapse">
+                    <table className="w-full min-w-[920px] border-collapse text-sm">
                       <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
                         <tr className="border-b border-border">
                           <th className="h-12 px-4 text-left align-middle font-medium text-muted-foreground">
@@ -594,7 +587,7 @@ export default function InventoryPlanning() {
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-lg border border-border/70 bg-background">
-              <table className="w-full border-collapse">
+              <table className="w-full border-collapse text-sm">
                 <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
                   <tr className="border-b border-border">
                     <th className="h-10 px-4 text-left align-middle font-medium text-muted-foreground text-sm">

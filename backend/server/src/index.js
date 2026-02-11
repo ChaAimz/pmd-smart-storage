@@ -4,6 +4,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const winston = require('winston');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 require('dotenv').config();
 
 const Database = require('./database');
@@ -51,6 +52,62 @@ async function tableExists(tableName) {
   });
 
   return !!row;
+}
+
+const notificationClients = new Set();
+
+function formatUserPayload(user) {
+  return {
+    id: user.id,
+    username: user.username,
+    fullName: user.full_name,
+    email: user.email,
+    role: user.role,
+    avatarUrl: user.avatar_url
+  };
+}
+
+async function ensureNotificationsTable() {
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      data TEXT,
+      link TEXT,
+      is_read INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+}
+
+function pushSseEvent(payload) {
+  const message = `data: ${JSON.stringify(payload)}\n\n`;
+  notificationClients.forEach((client) => {
+    try {
+      client.write(message);
+    } catch (error) {
+      logger.warn('Failed to push SSE event:', error.message);
+    }
+  });
+}
+
+async function createNotification({ type, title, message, data = null, link = '' }) {
+  await ensureNotificationsTable();
+  const serializedData = data ? JSON.stringify(data) : null;
+  const insert = await db.run(
+    `INSERT INTO notifications (type, title, message, data, link, is_read) VALUES (?, ?, ?, ?, ?, 0)`,
+    [type, title, message, serializedData, link]
+  );
+  const row = await db.get('SELECT * FROM notifications WHERE id = ?', [insert.id]);
+  const notification = {
+    ...row,
+    data: row?.data ? JSON.parse(row.data) : null,
+    is_read: !!row?.is_read
+  };
+  pushSseEvent({ type: 'notification', data: notification });
+  return notification;
 }
 
 // Initialize database
@@ -319,17 +376,18 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
 
-    // Return user without password
-    const { password_hash, ...userWithoutPassword } = user;
+    const userPayload = formatUserPayload(user);
+    const token = jwt.sign(
+      { sub: user.id, username: user.username, role: user.role },
+      process.env.JWT_SECRET || 'smart-storage-dev-secret',
+      { expiresIn: '7d' }
+    );
+
     res.json({
       success: true,
       data: {
-        id: user.id,
-        username: user.username,
-        fullName: user.full_name,
-        email: user.email,
-        role: user.role,
-        avatarUrl: user.avatar_url
+        token,
+        user: userPayload
       }
     });
   } catch (error) {
@@ -413,7 +471,7 @@ app.post('/api/items', async (req, res) => {
     const {
       sku, name, description, category, unit, min_quantity,
       reorder_point, reorder_quantity, safety_stock, lead_time_days,
-      unit_cost, supplier_name, supplier_contact
+      unit_cost, supplier_name, supplier_contact, image_url
     } = req.body;
 
     if (!sku || !name || !category) {
@@ -430,12 +488,12 @@ app.post('/api/items', async (req, res) => {
         INSERT INTO items (
           sku, name, description, category, unit, min_quantity,
           reorder_point, reorder_quantity, safety_stock, lead_time_days,
-          unit_cost, supplier_name, supplier_contact
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          unit_cost, supplier_name, supplier_contact, image_url
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         sku, name, description, categoryRecord.name, unit || 'pcs', min_quantity || 0,
         reorder_point || 0, reorder_quantity || 0, safety_stock || 0, lead_time_days || 7,
-        unit_cost || 0, supplier_name, supplier_contact
+        unit_cost || 0, supplier_name, supplier_contact, image_url || null
       ], function(err) {
         if (err) reject(err);
         else resolve({ id: this.lastID });
@@ -459,7 +517,7 @@ app.put('/api/items/:id', async (req, res) => {
     const allowedFields = [
       'sku', 'name', 'description', 'category', 'unit', 'quantity',
       'min_quantity', 'reorder_point', 'reorder_quantity', 'safety_stock',
-      'lead_time_days', 'unit_cost', 'supplier_name', 'supplier_contact'
+      'lead_time_days', 'unit_cost', 'supplier_name', 'supplier_contact', 'image_url'
     ];
 
     const fields = Object.keys(updates).filter(key => allowedFields.includes(key));
@@ -793,6 +851,75 @@ app.get('/api/prs', async (req, res) => {
   }
 });
 
+app.post('/api/prs', async (req, res) => {
+  try {
+    const hasPrTable = await tableExists('purchase_requisitions');
+    const hasPrItemsTable = await tableExists('pr_items');
+    const hasMasterItemsTable = await tableExists('master_items');
+
+    if (!hasPrTable || !hasPrItemsTable || !hasMasterItemsTable) {
+      return res.status(404).json({ success: false, error: 'PR feature not initialized' });
+    }
+
+    const { priority = 'normal', required_date, notes = '', items = [] } = req.body || {};
+    if (!required_date || !/^\d{4}-\d{2}-\d{2}$/.test(required_date)) {
+      return res.status(400).json({ success: false, error: 'required_date must be YYYY-MM-DD' });
+    }
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ success: false, error: 'items array is required' });
+    }
+
+    const today = new Date();
+    const ymd = today.toISOString().slice(0, 10).replace(/-/g, '');
+    const serialRow = await db.get(
+      `SELECT COUNT(*) AS count FROM purchase_requisitions WHERE date(created_at) = date('now')`
+    );
+    const serial = String((Number(serialRow?.count || 0) + 1)).padStart(3, '0');
+    const prNumber = `PR-${ymd}-${serial}`;
+    const requesterId = 1;
+    const storeId = 1;
+
+    await db.run('BEGIN TRANSACTION');
+
+    const created = await db.run(
+      `
+      INSERT INTO purchase_requisitions (pr_number, store_id, requester_id, status, priority, required_date, notes)
+      VALUES (?, ?, ?, 'ordered', ?, ?, ?)
+      `,
+      [prNumber, storeId, requesterId, priority, required_date, notes || null]
+    );
+
+    for (const item of items) {
+      const masterItemId = Number(item.master_item_id);
+      const qty = Number(item.quantity);
+      const estCost = Number(item.estimated_unit_cost || 0);
+      if (!masterItemId || !Number.isFinite(qty) || qty <= 0) continue;
+      await db.run(
+        `
+        INSERT INTO pr_items (pr_id, master_item_id, quantity, estimated_unit_cost, notes, received_quantity)
+        VALUES (?, ?, ?, ?, ?, 0)
+        `,
+        [created.id, masterItemId, Math.round(qty), estCost, item.notes || null]
+      );
+    }
+
+    await db.run('COMMIT');
+    await createNotification({
+      type: 'pr_created',
+      title: 'PR Created',
+      message: `${prNumber} created and waiting for purchasing`,
+      data: { pr_id: created.id, pr_number: prNumber },
+      link: `/prs/${created.id}`
+    });
+
+    res.status(201).json({ success: true, data: { id: created.id, pr_number: prNumber } });
+  } catch (error) {
+    await new Promise((resolve) => db.db.run('ROLLBACK', () => resolve()));
+    logger.error('Error creating PR:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ==================== Category Master ====================
 app.get('/api/categories', async (req, res) => {
   try {
@@ -1084,6 +1211,84 @@ app.get('/api/prs/:id', async (req, res) => {
   }
 });
 
+app.get('/api/prs/:id/export', async (req, res) => {
+  try {
+    const hasPrTable = await tableExists('purchase_requisitions');
+    const hasPrItemsTable = await tableExists('pr_items');
+    if (!hasPrTable || !hasPrItemsTable) {
+      return res.status(404).json({ success: false, error: 'PR feature not initialized' });
+    }
+
+    const prId = Number(req.params.id);
+    if (!Number.isFinite(prId)) {
+      return res.status(400).json({ success: false, error: 'Invalid PR id' });
+    }
+
+    const pr = await db.get(
+      `
+      SELECT
+        pr.*,
+        COALESCE(u.full_name, 'Unknown') AS requester_name,
+        COALESCE(s.name, 'Main Store') AS store_name,
+        COALESCE(d.name, 'General') AS department_name
+      FROM purchase_requisitions pr
+      LEFT JOIN users u ON u.id = pr.requester_id
+      LEFT JOIN stores s ON s.id = pr.store_id
+      LEFT JOIN departments d ON d.id = s.department_id
+      WHERE pr.id = ?
+      `,
+      [prId]
+    );
+
+    if (!pr) {
+      return res.status(404).json({ success: false, error: 'PR not found' });
+    }
+
+    const items = await db.all(
+      `
+      SELECT
+        COALESCE(mi.sku, 'N/A') AS sku,
+        COALESCE(mi.name, 'Unknown') AS item_name,
+        COALESCE(mi.name, 'Unknown') AS name,
+        COALESCE(mi.unit, 'pcs') AS unit,
+        pri.quantity,
+        COALESCE(pri.estimated_unit_cost, 0) AS estimated_unit_cost,
+        COALESCE(pri.estimated_unit_cost, 0) AS estimated_price,
+        (pri.quantity * COALESCE(pri.estimated_unit_cost, 0)) AS estimated_total,
+        pri.notes
+      FROM pr_items pri
+      LEFT JOIN master_items mi ON mi.id = pri.master_item_id
+      WHERE pri.pr_id = ?
+      ORDER BY pri.id ASC
+      `,
+      [prId]
+    );
+
+    const totalAmount = items.reduce((sum, item) => sum + Number(item.estimated_total || 0), 0);
+    const payload = {
+      pr_number: pr.pr_number,
+      pr_date: pr.created_at,
+      required_date: pr.required_date,
+      priority: pr.priority,
+      requester: pr.requester_name,
+      requester_name: pr.requester_name,
+      department: pr.department_name,
+      department_name: pr.department_name,
+      store: pr.store_name,
+      store_name: pr.store_name,
+      notes: pr.notes || '',
+      total_estimated_amount: totalAmount,
+      total_amount: totalAmount,
+      items
+    };
+
+    res.json({ success: true, data: payload });
+  } catch (error) {
+    logger.error('Error exporting PR:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/prs/:id/receive', async (req, res) => {
   try {
     const { items = [], po_number, received_date } = req.body;
@@ -1109,6 +1314,18 @@ app.post('/api/prs/:id/receive', async (req, res) => {
         continue;
       }
 
+      const prItem = await new Promise((resolve, reject) => {
+        db.db.get(
+          'SELECT master_item_id, quantity, COALESCE(received_quantity, 0) AS received_quantity FROM pr_items WHERE id = ? AND pr_id = ?',
+          [prItemId, prId],
+          (err, row) => (err ? reject(err) : resolve(row))
+        );
+      });
+
+      if (!prItem) {
+        continue;
+      }
+
       await new Promise((resolve, reject) => {
         db.db.run(
           `
@@ -1123,6 +1340,18 @@ app.post('/api/prs/:id/receive', async (req, res) => {
           }
         );
       });
+
+      const row = await db.get('SELECT id, quantity FROM items WHERE sku = (SELECT sku FROM master_items WHERE id = ?)', [prItem.master_item_id]);
+      if (row?.id) {
+        await db.run('UPDATE items SET quantity = quantity + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [receivedQty, row.id]);
+        await db.run(
+          `
+          INSERT INTO stock_transactions (item_id, location_id, transaction_type, quantity, reference_number, notes, user_id)
+          VALUES (?, NULL, 'receive', ?, ?, ?, 1)
+          `,
+          [row.id, receivedQty, po_number || null, `PR ${prId} receive`]
+        );
+      }
 
       receivedCount += 1;
     }
@@ -1152,6 +1381,14 @@ app.post('/api/prs/:id/receive', async (req, res) => {
 
     await new Promise((resolve, reject) => {
       db.db.run('COMMIT', (err) => (err ? reject(err) : resolve()));
+    });
+
+    await createNotification({
+      type: 'pr_received',
+      title: 'PR Received',
+      message: `PR #${prId} received (${receivedCount} lines)`,
+      data: { pr_id: prId, status, received_count: receivedCount },
+      link: `/prs/${prId}`
     });
 
     res.json({
@@ -1232,12 +1469,133 @@ app.post('/api/prs/:id/eta', async (req, res) => {
       );
     });
 
+    await createNotification({
+      type: 'pr_eta_updated',
+      title: 'PR ETA Updated',
+      message: `${updatedPr.pr_number}: ${existingPr.required_date || 'N/A'} -> ${required_date}`,
+      data: { pr_id: prId, pr_number: updatedPr.pr_number, required_date },
+      link: `/prs/${prId}`
+    });
+
     logger.info(`Updated ETA for PR ${updatedPr.pr_number}: ${existingPr.required_date} -> ${required_date}`);
     res.json({ success: true, data: updatedPr });
   } catch (error) {
     logger.error('Error updating PR ETA:', error);
     res.status(500).json({ success: false, error: error.message });
   }
+});
+
+app.get('/api/master-items', async (req, res) => {
+  try {
+    const hasMasterItemsTable = await tableExists('master_items');
+    if (!hasMasterItemsTable) {
+      return res.json({ success: true, data: [] });
+    }
+
+    const q = String(req.query.search || '').trim();
+    const params = [];
+    let where = 'WHERE COALESCE(mi.is_active, 1) = 1';
+    if (q) {
+      where += ' AND (mi.sku LIKE ? OR mi.name LIKE ? OR COALESCE(mi.category, \'\') LIKE ?)';
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+
+    const rows = await db.all(
+      `
+      SELECT mi.id, mi.sku, mi.name, COALESCE(mi.unit, 'pcs') AS unit, COALESCE(mi.category, 'Other') AS category
+      FROM master_items mi
+      ${where}
+      ORDER BY mi.name ASC
+      LIMIT 100
+      `,
+      params
+    );
+
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    logger.error('Error getting master items:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/notifications', async (req, res) => {
+  try {
+    await ensureNotificationsTable();
+    const limit = Math.max(1, Math.min(200, Number(req.query.limit || 50)));
+    const rows = await db.all(
+      'SELECT * FROM notifications ORDER BY datetime(created_at) DESC, id DESC LIMIT ?',
+      [limit]
+    );
+    const data = rows.map((row) => ({
+      ...row,
+      data: row.data ? JSON.parse(row.data) : null,
+      is_read: !!row.is_read
+    }));
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('Error getting notifications:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/notifications/unread-count', async (req, res) => {
+  try {
+    await ensureNotificationsTable();
+    const row = await db.get('SELECT COUNT(*) AS count FROM notifications WHERE is_read = 0');
+    res.json({ success: true, data: { count: Number(row?.count || 0) } });
+  } catch (error) {
+    logger.error('Error getting unread notification count:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/notifications/:id/read', async (req, res) => {
+  try {
+    await ensureNotificationsTable();
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ success: false, error: 'Invalid notification id' });
+    }
+    await db.run('UPDATE notifications SET is_read = 1 WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error marking notification as read:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/notifications/read-all', async (req, res) => {
+  try {
+    await ensureNotificationsTable();
+    await db.run('UPDATE notifications SET is_read = 1 WHERE is_read = 0');
+    res.json({ success: true });
+  } catch (error) {
+    logger.error('Error marking all notifications as read:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/notifications/stream', async (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders?.();
+
+  notificationClients.add(res);
+  res.write(`data: ${JSON.stringify({ type: 'connected' })}\n\n`);
+
+  const interval = setInterval(() => {
+    try {
+      res.write(`event: ping\ndata: {}\n\n`);
+    } catch (error) {
+      clearInterval(interval);
+    }
+  }, 25000);
+
+  req.on('close', () => {
+    clearInterval(interval);
+    notificationClients.delete(res);
+  });
 });
 
 // Graceful shutdown

@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { PRStatusBadge } from '@/components/ui/pr-status-badge';
 import { H1, Lead } from '@/components/ui/typography';
 import { 
   Package, 
@@ -220,9 +221,7 @@ export function PRReceive() {
                 {pr.department_name} / {pr.store_name}
               </div>
             </div>
-            <Badge className="bg-blue-100 text-blue-800">
-              {pr.status === 'ordered' ? 'Ordered' : 'Partially Received'}
-            </Badge>
+            <PRStatusBadge status={pr.status} />
           </div>
         </CardContent>
       </Card>

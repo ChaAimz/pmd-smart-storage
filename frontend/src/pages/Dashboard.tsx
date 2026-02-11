@@ -38,6 +38,7 @@ import { H1, Lead } from '@/components/ui/typography'
 
 import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
+import { ItemNameHoverCard } from '@/components/ui/item-name-hover-card'
 import * as api from '@/services/api'
 import {
   AreaChart,
@@ -622,6 +623,8 @@ export function Dashboard() {
                   {recentTransactions.map((txn) => {
                     // Use item_name directly from transaction (returned by API)
                     const itemName = txn.item_name || 'Unknown'
+                    const itemSku = txn.sku || 'N/A'
+                    const itemMeta = items.find((it) => it.id === txn.item_id || it.sku === itemSku)
                     return (
                       <div
                         key={txn.id}
@@ -642,7 +645,15 @@ export function Dashboard() {
                             )}
                           </div>
                           <div>
-                            <div className="font-medium text-sm">{itemName}</div>
+                            <div className="font-medium text-sm">
+                              <ItemNameHoverCard
+                                name={itemName}
+                                sku={itemSku}
+                                item={itemMeta}
+                                transactions={transactions}
+                                className="cursor-default"
+                              />
+                            </div>
                             <div className="text-xs text-muted-foreground">
                               {new Date(txn.created_at).toLocaleString()}
                             </div>

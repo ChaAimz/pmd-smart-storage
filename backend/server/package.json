@@ -7,8 +7,10 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "seed": "node src/seed.js",
+    "seed:receive-chart": "node src/seed-receive-chart-mock.js",
     "seed:pr-guide": "node src/seed-pr-guide.js",
     "seed:extra": "node src/seed-extra.js",
+    "test:smoke": "node scripts/smoke-api.js",
     "test": "jest",
     "lint": "eslint src/"
   },

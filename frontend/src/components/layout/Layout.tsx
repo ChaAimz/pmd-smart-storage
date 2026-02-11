@@ -11,7 +11,7 @@ import { usePageContext } from '@/contexts/use-page-context'
 function LayoutContent() {
   const location = useLocation()
   const isDashboard = location.pathname === '/'
-  const fullContentRoutes = ['/receive', '/pick', '/adjust', '/items', '/planning']
+  const fullContentRoutes = ['/receive', '/pick', '/adjust', '/items', '/planning', '/prs']
   const isFullContentPage = fullContentRoutes.includes(location.pathname)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window === 'undefined') return false

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { getPrPriorityBadgeClassName, getPrPriorityLabel } from '@/lib/pr-priority';
 import { H1, Lead } from '@/components/ui/typography';
 import { 
   Trash2, 
@@ -409,17 +410,14 @@ export function CreatePR() {
               <div>
                 <Label>Priority</Label>
                 <div className="flex gap-2 mt-1 flex-wrap">
-                  {['low', 'normal', 'high', 'urgent'].map((p) => (
+                  {(['low', 'normal', 'high', 'urgent'] as const).map((p) => (
                     <Badge
                       key={p}
-                      variant={priority === p ? 'default' : 'outline'}
-                      className="cursor-pointer"
+                      variant="outline"
+                      className={`cursor-pointer border-0 transition-opacity ${getPrPriorityBadgeClassName(p)} ${priority === p ? '' : 'opacity-55'}`}
                       onClick={() => setPriority(p)}
                     >
-                      {p === 'low' && 'Low'}
-                      {p === 'normal' && 'Normal'}
-                      {p === 'high' && 'High'}
-                      {p === 'urgent' && 'Urgent'}
+                      {getPrPriorityLabel(p)}
                     </Badge>
                   ))}
                 </div>

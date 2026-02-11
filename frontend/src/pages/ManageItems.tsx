@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Small } from '@/components/ui/typography'
+import { ItemNameHoverCard } from '@/components/ui/item-name-hover-card'
 import {
   Select,
   SelectContent,
@@ -90,6 +91,8 @@ export function ManageItems() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [createCategoryValue, setCreateCategoryValue] = useState<string>('')
+  const [editCategoryValue, setEditCategoryValue] = useState<string>('')
   const [sortColumn, setSortColumn] = useState<SortColumn>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [columnWidths, setColumnWidths] = useState<Record<ColumnKey, number>>(() => {
@@ -303,6 +306,7 @@ export function ManageItems() {
 
   const handleEdit = (item: api.Item) => {
     setSelectedItem(item)
+    setEditCategoryValue(item.category || '')
     setShowEditDialog(true)
   }
 
@@ -312,9 +316,100 @@ export function ManageItems() {
   }
 
   const confirmDelete = () => {
-    toast.success(`${selectedItem?.name} has been removed from inventory`)
-    setShowDeleteDialog(false)
-    setSelectedItem(null)
+    if (!selectedItem) return
+    api.deleteItem(selectedItem.id)
+      .then(() => {
+        setItems((prev) => prev.filter((item) => item.id !== selectedItem.id))
+        toast.success(`${selectedItem?.name} has been removed from inventory`)
+      })
+      .catch((error) => {
+        console.error('Failed to delete item:', error)
+        toast.error('Failed to delete item')
+      })
+      .finally(() => {
+        setShowDeleteDialog(false)
+        setSelectedItem(null)
+      })
+  }
+
+  const readInputValue = (id: string) => {
+    const element = document.getElementById(id) as HTMLInputElement | null
+    return element?.value?.trim() || ''
+  }
+
+  const handleCreateItem = async () => {
+    const sku = readInputValue('new-sku')
+    const name = readInputValue('new-name')
+    const category = createCategoryValue || activeCategoryNames[0] || 'Other'
+    const reorderPoint = Number(readInputValue('new-reorder-point') || 0)
+    const reorderQty = Number(readInputValue('new-reorder-qty') || 0)
+    const safetyStock = Number(readInputValue('new-safety-stock') || 0)
+    const leadTime = Number(readInputValue('new-lead-time') || 7)
+    const supplierName = readInputValue('new-supplier')
+    const unitCost = Number(readInputValue('new-unit-cost') || 0)
+    const imageUrl = readInputValue('new-image-url')
+
+    if (!sku || !name || !category) {
+      toast.error('SKU, product name, and category are required')
+      return
+    }
+
+    try {
+      const created = await api.createItem({
+        sku,
+        name,
+        category,
+        reorder_point: reorderPoint,
+        reorder_quantity: reorderQty,
+        safety_stock: safetyStock,
+        lead_time_days: leadTime,
+        supplier_name: supplierName || undefined,
+        unit_cost: unitCost,
+        image_url: imageUrl || undefined,
+      })
+      const refreshed = await api.getAllItems()
+      setItems(refreshed)
+      setShowCreateDialog(false)
+      setCreateCategoryValue('')
+      toast.success('New item has been added to inventory')
+      return created
+    } catch (error) {
+      console.error('Failed to create item:', error)
+      toast.error('Failed to create item')
+      return null
+    }
+  }
+
+  const handleSaveEdit = async () => {
+    if (!selectedItem) return
+    const sku = readInputValue('edit-sku')
+    const name = readInputValue('edit-name')
+    const category = editCategoryValue || selectedItem.category || 'Other'
+    const minQty = Number(readInputValue('edit-min') || 0)
+    const imageUrl = readInputValue('edit-image-url')
+
+    if (!sku || !name || !category) {
+      toast.error('SKU, product name, and category are required')
+      return
+    }
+
+    try {
+      await api.updateItem(selectedItem.id, {
+        sku,
+        name,
+        category,
+        min_quantity: minQty,
+        image_url: imageUrl || undefined,
+      } as Partial<api.Item>)
+      const refreshed = await api.getAllItems()
+      setItems(refreshed)
+      setShowEditDialog(false)
+      setSelectedItem(null)
+      toast.success(`${name} has been updated successfully`)
+    } catch (error) {
+      console.error('Failed to update item:', error)
+      toast.error('Failed to update item')
+    }
   }
 
   return (
@@ -339,7 +434,7 @@ export function ManageItems() {
                   </div>
                   <div className="space-y-2">
                     <Label>Category *</Label>
-                    <Select>
+                    <Select value={createCategoryValue} onValueChange={setCreateCategoryValue}>
                       <SelectTrigger>
                         <SelectValue placeholder="Select category..." />
                       </SelectTrigger>
@@ -360,6 +455,10 @@ export function ManageItems() {
                 <div className="space-y-2">
                   <Label htmlFor="new-barcode">Barcode (Optional)</Label>
                   <Input id="new-barcode" placeholder="Scan or enter barcode" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-image-url">Image URL (Thumbnail)</Label>
+                  <Input id="new-image-url" placeholder="https://example.com/item.jpg" />
                 </div>
               </div>
 
@@ -411,10 +510,7 @@ export function ManageItems() {
               <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
                 Cancel
               </Button>
-              <Button onClick={() => {
-                setShowCreateDialog(false)
-                toast.success('New item has been added to inventory')
-              }}>
+              <Button onClick={handleCreateItem}>
                 Create Item
               </Button>
             </DialogFooter>
@@ -471,7 +567,7 @@ export function ManageItems() {
         <CardContent className="flex min-h-0 flex-1 flex-col px-4 pb-4 pt-0">
           <div className="min-h-0 flex-1 overflow-hidden rounded-lg border border-border/70 bg-background">
             <div className="h-full overflow-auto">
-            <table className="w-full table-fixed border-collapse" style={{ minWidth: `${tableMinWidth}px` }}>
+            <table className="w-full table-fixed border-collapse text-sm" style={{ minWidth: `${tableMinWidth}px` }}>
               <colgroup>
                 <col style={{ width: columnWidths.sku }} />
                 <col style={{ width: columnWidths.name }} />
@@ -612,7 +708,14 @@ export function ManageItems() {
                         {itemSku}
                       </code>
                     </td>
-                    <td className="px-4 py-3 font-medium">{itemName}</td>
+                    <td className="px-4 py-3 font-medium">
+                      <ItemNameHoverCard
+                        name={itemName}
+                        sku={itemSku}
+                        item={item}
+                        className="cursor-default"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       {(() => {
                         const categoryColor = categoryColorByName.get(itemCategory) || '#64748B'
@@ -632,7 +735,7 @@ export function ManageItems() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-col">
-                        <span className="font-semibold">{item.quantity}</span>
+                        <span className="font-semibold">{item.quantity} {item.unit || 'pcs'}</span>
                         <span className="text-xs text-muted-foreground">
                           Safety: {item.safety_stock}
                         </span>
@@ -699,7 +802,7 @@ export function ManageItems() {
                 </div>
                 <div className="space-y-2">
                   <Label>Category *</Label>
-                  <Select defaultValue={selectedItem.category || undefined}>
+                  <Select value={editCategoryValue} onValueChange={setEditCategoryValue}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select category..." />
                     </SelectTrigger>
@@ -720,12 +823,16 @@ export function ManageItems() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-min">Minimum Quantity</Label>
-                  <Input id="edit-min" type="number" defaultValue={selectedItem.minQuantity} />
+                  <Input id="edit-min" type="number" defaultValue={selectedItem.min_quantity ?? selectedItem.minQuantity ?? 0} />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="edit-current">Current Quantity</Label>
                   <Input id="edit-current" type="number" defaultValue={selectedItem.quantity} disabled />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-image-url">Image URL (Thumbnail)</Label>
+                <Input id="edit-image-url" defaultValue={selectedItem.image_url || ''} placeholder="https://example.com/item.jpg" />
               </div>
             </div>
           )}
@@ -733,10 +840,7 @@ export function ManageItems() {
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={() => {
-              setShowEditDialog(false)
-              toast.success(`${selectedItem?.name} has been updated successfully`)
-            }}>
+            <Button onClick={handleSaveEdit}>
               Save Changes
             </Button>
           </DialogFooter>

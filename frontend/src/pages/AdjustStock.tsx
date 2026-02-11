@@ -48,6 +48,7 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { TableLoadingSkeleton } from '@/components/ui/loading-state'
+import { ItemNameHoverCard } from '@/components/ui/item-name-hover-card'
 import * as api from '@/services/api'
 import { useAuth } from '@/contexts/use-auth'
 import { usePageContext } from '@/contexts/use-page-context'
@@ -335,7 +336,7 @@ export function AdjustStock() {
             </ToggleGroup>
             <Popover>
               <PopoverTrigger asChild>
-                <Button size="sm" variant="outline" className="min-w-[230px] shrink-0 justify-start">
+                <Button variant="outline" className="min-w-[230px] shrink-0 justify-start">
                   <CalendarDays className="mr-2 h-4 w-4" />
                   {rangeLabel}
                 </Button>
@@ -347,7 +348,7 @@ export function AdjustStock() {
                 />
               </PopoverContent>
             </Popover>
-            <Button onClick={handleOpenDialog} size="sm" className="ml-auto shrink-0">
+            <Button onClick={handleOpenDialog} className="ml-auto shrink-0">
               <Settings className="mr-2 h-4 w-4" />
               Quick Adjust
             </Button>
@@ -410,6 +411,7 @@ export function AdjustStock() {
                     // Use item_name and sku directly from transaction (returned by API)
                     const itemName = txn.item_name || 'Unknown'
                     const itemSku = txn.sku || 'N/A'
+                    const itemMeta = items.find((it) => it.id === txn.item_id || it.sku === itemSku)
                     return (
                       <motion.tr
                         key={txn.id}
@@ -419,7 +421,13 @@ export function AdjustStock() {
                         className="border-b border-border transition-colors hover:bg-muted/50"
                       >
                         <TableCell className="font-medium">
-                          {itemName}
+                          <ItemNameHoverCard
+                            name={itemName}
+                            sku={itemSku}
+                            item={itemMeta}
+                            transactions={transactions}
+                            className="cursor-default"
+                          />
                         </TableCell>
                         <TableCell>
                           <code className="rounded bg-muted px-2 py-1 text-xs">

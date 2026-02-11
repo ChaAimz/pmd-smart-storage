@@ -6,14 +6,17 @@ import {
   CalendarClock,
   CalendarDays,
   Package,
+  Boxes,
   TrendingUp,
   Activity,
   Clock3,
   Timer,
   AlertTriangle,
-  CheckCircle2,
-  XCircle,
-  Hash,
+  Building2,
+  DollarSign,
+  ShieldAlert,
+  Ruler,
+  Image as ImageIcon,
 } from 'lucide-react'
 
 interface ItemLike {
@@ -90,45 +93,19 @@ const toInputDateValue = (value?: string | null): string => {
   return `${year}-${month}-${day}`
 }
 
+const formatShortDate = (date: Date): string =>
+  date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+const formatEventDate = (date: Date): string => {
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = date.toLocaleString('en-US', { month: 'short' })
+  const year = String(date.getFullYear()).slice(-2)
+  return `${day}/${month}/${year}`
+}
+
 const toFiniteNumber = (value: unknown, fallback = 0): number => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
-}
-
-const formatPrStatus = (status?: string): string => {
-  if (!status) return 'Ordered'
-  return status
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
-const getPrStatusBadgeClass = (status?: string): string => {
-  switch (status) {
-    case 'partially_received':
-      return 'border-border bg-amber-50 text-amber-700 dark:border-border dark:bg-amber-950/50 dark:text-amber-200'
-    case 'fully_received':
-      return 'border-border bg-emerald-50 text-emerald-700 dark:border-border dark:bg-emerald-950/50 dark:text-emerald-200'
-    case 'cancelled':
-      return 'border-border bg-rose-50 text-rose-700 dark:border-border dark:bg-rose-950/50 dark:text-rose-200'
-    case 'ordered':
-    default:
-      return 'border-border bg-blue-50 text-blue-700 dark:border-border dark:bg-blue-950/50 dark:text-blue-200'
-  }
-}
-
-const getPrStatusIcon = (status?: string) => {
-  switch (status) {
-    case 'fully_received':
-      return CheckCircle2
-    case 'cancelled':
-      return XCircle
-    case 'partially_received':
-      return Timer
-    case 'ordered':
-    default:
-      return Clock3
-  }
 }
 
 const getEtaMeta = (expectedDate?: string | null) => {
@@ -197,6 +174,31 @@ const getEtaMeta = (expectedDate?: string | null) => {
     hintBadgeClass: 'bg-muted text-muted-foreground',
   }
 }
+
+const getTodayFollowUpMeta = (expectedDate?: string | null) => {
+  const date = parseDateOnly(expectedDate)
+  const today = startOfDay(new Date())
+
+  if (!date) {
+    return {
+      label: 'No ETA',
+      className: 'border-border bg-muted text-muted-foreground',
+    }
+  }
+
+  const target = startOfDay(date)
+  if (target < today) {
+    return {
+      label: 'Late',
+      className: 'border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-200',
+    }
+  }
+
+  return {
+    label: 'Not Received',
+    className: 'border-amber-300 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200',
+  }
+}
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -204,7 +206,21 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card'
+import { ItemNameHoverCard } from '@/components/ui/item-name-hover-card'
+import { PRStatusBadge } from '@/components/ui/pr-status-badge'
 import { StatusCard } from '@/components/ui/status-card'
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Line,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
 import {
   Dialog,
   DialogContent,
@@ -243,14 +259,13 @@ interface PRReceiveDialogItem {
   receive_quantity: number
 }
 
-const COMPACT_PRIMARY_BUTTON_CLASS = 'h-8 px-3 text-xs'
-const COMPACT_OUTLINE_BUTTON_CLASS = 'h-8 px-3 text-xs'
 const DIALOG_PRIMARY_BUTTON_CLASS = 'h-9 px-4'
 const DIALOG_OUTLINE_BUTTON_CLASS = 'h-9 px-4'
 
 export function ReceiveItems() {
   const [items, setItems] = useState<api.Item[]>([])
   const [transactions, setTransactions] = useState<api.Transaction[]>([])
+  const [allTransactions, setAllTransactions] = useState<api.Transaction[]>([])
   const [incomingPrGuide, setIncomingPrGuide] = useState<PRGuideEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingPrGuide, setIsLoadingPrGuide] = useState(false)
@@ -288,10 +303,11 @@ export function ReceiveItems() {
       setIsLoading(true)
       const [itemsData, transactionsData] = await Promise.all([
         api.getAllItems(),
-        api.getTransactions()
+        api.getTransactions(5000)
       ])
       const receiveTransactions = transactionsData.filter(t => t.transaction_type === 'receive')
       setItems(itemsData)
+      setAllTransactions(transactionsData)
       setTransactions(receiveTransactions)
       await fetchIncomingPRGuide()
     } catch (error) {
@@ -316,28 +332,24 @@ export function ReceiveItems() {
         return
       }
 
-      const today = startOfDay(new Date())
-      const weekEnd = addDays(today, 6)
-
       const prList = response.data as PRLike[]
 
       const activePRs = prList.filter((pr) =>
         ['ordered', 'partially_received'].includes(pr.status || '')
       )
 
-      const upcomingPRs = activePRs.filter((pr) => {
+      const openPRs = activePRs.filter((pr) => {
         const date = parseDateOnly(getPrExpectedDate(pr))
-        if (!date) return false
-        return date >= today && date <= weekEnd
+        return !!date
       })
 
-      if (upcomingPRs.length === 0) {
+      if (openPRs.length === 0) {
         setIncomingPrGuide([])
         return
       }
 
       const details = await Promise.all(
-        upcomingPRs.map(async (pr) => {
+        openPRs.map(async (pr) => {
           const detail = await api.get(`/prs/${pr.id}`)
           const prData = (detail?.success ? detail.data : pr) as PRLike
           const rawItems = Array.isArray(prData?.items) ? prData.items : []
@@ -609,7 +621,7 @@ export function ReceiveItems() {
     const today = startOfDay(new Date())
     return incomingPrGuide.filter((pr) => {
       const expected = parseDateOnly(pr.expectedDate)
-      return !!expected && expected.getTime() === today.getTime()
+      return !!expected && expected <= today
     })
   }, [incomingPrGuide])
 
@@ -658,6 +670,27 @@ export function ReceiveItems() {
     (sum, pr) => sum + pr.items.reduce((itemSum, item) => itemSum + item.remainingQuantity, 0),
     0
   )
+  const stockMetaBySku = useMemo(() => {
+    const map = new Map<string, { onHand: number; isCritical: boolean }>()
+    items.forEach((item) => {
+      const sku = getItemSku(item as ItemLike)
+      if (!sku || sku === 'N/A') return
+      const onHand = Number(item.quantity) || 0
+      const reorderPoint = Number(item.reorder_point) || 0
+      map.set(sku, { onHand, isCritical: onHand <= reorderPoint })
+    })
+    return map
+  }, [items])
+  const itemBySku = useMemo(() => {
+    const map = new Map<string, api.Item>()
+    items.forEach((item) => {
+      const sku = getItemSku(item as ItemLike)
+      if (!sku || sku === 'N/A') return
+      map.set(sku, item)
+    })
+    return map
+  }, [items])
+
   const incomingLineCount = incomingPrGuide.reduce((sum, pr) => sum + pr.items.length, 0)
   const incomingQuantity = incomingPrGuide.reduce(
     (sum, pr) => sum + pr.items.reduce((itemSum, item) => itemSum + item.remainingQuantity, 0),
@@ -671,6 +704,320 @@ export function ReceiveItems() {
     })
   }, [transactions])
   const receivedTodayQuantity = receivedToday.reduce((sum, txn) => sum + txn.quantity, 0)
+
+  const renderItemHoverCard = (item: PRGuideItem) => {
+    const meta = itemBySku.get(item.sku)
+    const stockMeta = stockMetaBySku.get(item.sku)
+    const onHand = stockMeta?.onHand ?? 0
+    const reorderPoint = Number(meta?.reorder_point) || 0
+    const safetyStock = Number(meta?.safety_stock) || 0
+    const reorderQty = Number(meta?.reorder_quantity) || 0
+    const leadTime = Number(meta?.lead_time_days) || 0
+    const unitCost = Number(meta?.unit_cost) || 0
+    const unit = String(meta?.unit || 'pcs').trim() || 'pcs'
+    const supplier = meta?.supplier_name || '-'
+    const category = meta?.category || '-'
+    const isCritical = !!stockMeta?.isCritical
+
+    const today = startOfDay(new Date())
+    const points = 13 // weekly points for ~3 months
+    const startDate = addDays(today, -84)
+    const itemId = meta?.id
+
+    const itemTransactions = allTransactions
+      .filter((tx) => tx.item_id === itemId && (tx.transaction_type === 'pick' || tx.transaction_type === 'receive'))
+      .map((tx) => ({
+        ...tx,
+        date: startOfDay(new Date(tx.created_at)),
+      }))
+      .sort((a, b) => a.date.getTime() - b.date.getTime())
+
+    const mockTransactions = itemTransactions.filter((tx) => (tx.notes || '').startsWith('MOCK_CHART_'))
+    const itemTx = mockTransactions.length > 0 ? mockTransactions : itemTransactions
+
+    const txInRange = itemTx.filter((tx) => tx.date >= startDate && tx.date <= today)
+    const netSinceStart = txInRange.reduce((sum, tx) => {
+      if (tx.transaction_type === 'receive') return sum + Math.abs(Number(tx.quantity) || 0)
+      return sum - Math.abs(Number(tx.quantity) || 0)
+    }, 0)
+
+    const estimatedStartOnHand = Math.max(0, onHand - netSinceStart)
+    const chartData: Array<{
+      t: string
+      onHand: number
+      event?: string
+      date: Date
+      usagePickQty: number
+      inboundReceiveQty: number
+    }> = []
+
+    let runningOnHand = estimatedStartOnHand
+    let cursorDate = addDays(startDate, -1)
+
+    for (let i = 0; i < points; i += 1) {
+      const pointDate = i === points - 1 ? today : addDays(startDate, i * 7)
+      const rangeTx = txInRange.filter((tx) => tx.date > cursorDate && tx.date <= pointDate)
+      const usagePickQty = rangeTx.reduce((sum, tx) => (
+        tx.transaction_type === 'pick' ? sum + Math.abs(Number(tx.quantity) || 0) : sum
+      ), 0)
+      const inboundReceiveQty = rangeTx.reduce((sum, tx) => (
+        tx.transaction_type === 'receive' ? sum + Math.abs(Number(tx.quantity) || 0) : sum
+      ), 0)
+
+      if (rangeTx.length > 0) {
+        rangeTx.forEach((tx) => {
+          if (tx.transaction_type === 'receive') {
+            runningOnHand += Math.abs(Number(tx.quantity) || 0)
+          } else if (tx.transaction_type === 'pick') {
+            runningOnHand -= Math.abs(Number(tx.quantity) || 0)
+          }
+        })
+      }
+
+      const hasPick = rangeTx.some((tx) => tx.transaction_type === 'pick')
+      const hasReceive = rangeTx.some((tx) => tx.transaction_type === 'receive')
+      const event = hasPick && hasReceive ? 'Usage + Inbound' : hasPick ? 'Usage Pick' : hasReceive ? 'Inbound Receive' : undefined
+
+      chartData.push({
+        t: i === points - 1 ? 'Today' : formatShortDate(pointDate),
+        onHand: Math.max(0, runningOnHand),
+        event,
+        date: pointDate,
+        usagePickQty,
+        inboundReceiveQty,
+      })
+
+      cursorDate = pointDate
+    }
+
+    if (txInRange.length === 0 && chartData.length > 0) {
+      // Keep a visible, stable baseline when no movement history exists for this item.
+      chartData.forEach((point) => {
+        point.onHand = Math.max(0, onHand)
+      })
+    }
+
+    if (chartData.length > 0) {
+      chartData[chartData.length - 1].onHand = onHand
+    }
+
+    const maxY = Math.max(...chartData.map((d) => d.onHand), reorderPoint, safetyStock, 10)
+    const chartSeries = chartData.map((point, idx) => ({ ...point, idx }))
+    const orderPlacedIndex = chartData.findIndex((point, idx) => {
+      if (idx === 0) return false
+      const prev = chartData[idx - 1]
+      return prev.onHand > reorderPoint && point.onHand <= reorderPoint
+    })
+    const expeditedIndex = chartData.findIndex((point, idx) => idx >= Math.max(orderPlacedIndex, 0) && point.onHand <= safetyStock)
+    const orderArrivesIndex = chartData.findIndex((point, idx) => {
+      if (idx === 0) return false
+      const prev = chartData[idx - 1]
+      return idx >= Math.max(expeditedIndex, 0) && point.onHand - prev.onHand >= Math.max(10, Math.round(reorderQty * 0.5))
+    })
+    const flowMarkers: Array<{ key: string; idx: number; label: string; color: string; dy: number }> = []
+    if (orderPlacedIndex > 0) flowMarkers.push({ key: 'placed', idx: orderPlacedIndex, label: 'Placed', color: '#d97706', dy: -12 })
+    if (expeditedIndex > 0) flowMarkers.push({ key: 'expedited', idx: expeditedIndex, label: 'Expedite', color: '#dc2626', dy: 12 })
+    if (orderArrivesIndex > 0) flowMarkers.push({ key: 'arrives', idx: orderArrivesIndex, label: 'Arrive', color: '#0ea5e9', dy: -12 })
+    const renderChartTooltip = ({
+      active,
+      payload,
+      label,
+    }: {
+      active?: boolean
+      payload?: Array<{
+        dataKey?: string
+        value?: number | string
+        payload?: { event?: string; usagePickQty?: number; inboundReceiveQty?: number }
+      }>
+      label?: string | number
+    }) => {
+      if (!active || !payload || payload.length === 0) return null
+
+      const onHandEntry = payload.find((entry) => entry.dataKey === 'onHand' && typeof entry.value === 'number')
+      const onHandValue = Number(onHandEntry?.value ?? 0)
+      const pointEvent = String(payload[0]?.payload?.event || '').trim()
+      const usagePickValue = Number(payload[0]?.payload?.usagePickQty ?? 0)
+      const inboundReceiveValue = Number(payload[0]?.payload?.inboundReceiveQty ?? 0)
+      const pointDate = payload[0]?.payload?.date ? new Date(payload[0].payload.date as Date | string) : null
+      const isValidPointDate = !!pointDate && !Number.isNaN(pointDate.getTime())
+      const eventDisplay = pointEvent
+        ? `${isValidPointDate ? formatEventDate(pointDate) : String(label || '')} (${pointEvent})`
+        : '-'
+
+      return (
+        <div className="min-w-[180px] rounded-md border border-border bg-background p-2 text-xs shadow-sm">
+          <p className="mb-1 text-[11px] font-medium text-muted-foreground">{String(label || '')}</p>
+          <div className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 text-[10px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-0.5 w-3 rounded bg-sky-500" />
+              Onhand
+            </span>
+            <span className="text-right font-semibold text-foreground">{onHandValue}</span>
+
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber-500" />
+              Reorder
+            </span>
+            <span className="text-right">{reorderPoint}</span>
+
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-rose-500" />
+              Safety
+            </span>
+            <span className="text-right">{safetyStock}</span>
+
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-black dark:bg-zinc-100" />
+              Usage Pick
+            </span>
+            <span className="text-right">{usagePickValue > 0 ? usagePickValue : '-'}</span>
+
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              Inbound Receive
+            </span>
+            <span className="text-right">{inboundReceiveValue > 0 ? inboundReceiveValue : '-'}</span>
+
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-slate-400" />
+              Event
+            </span>
+            <span className="text-right">{eventDisplay}</span>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <>
+        <div className="flex items-start justify-between gap-2 border-b border-border pb-2">
+          <div className="flex min-w-0 items-start gap-2.5">
+            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-md border border-border/60 bg-muted/30">
+              {meta?.image_url ? (
+                <img src={meta.image_url} alt={item.itemName} className="h-full w-full object-cover" loading="lazy" />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+                  <ImageIcon className="h-4 w-4" />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{item.itemName}</p>
+              <p className="text-xs text-muted-foreground">{item.sku}</p>
+            </div>
+          </div>
+          {isCritical ? (
+            <Badge variant="destructive" className="h-5 px-2 text-[10px]">Critical</Badge>
+          ) : (
+            <Badge variant="outline" className="h-5 px-2 text-[10px]">Normal</Badge>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-border/70 bg-background p-2.5">
+          <div className="mb-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5 font-medium uppercase tracking-wide">
+              <Activity className="h-3.5 w-3.5" />
+              Onhand Timeline (3M)
+            </span>
+          </div>
+          <div className="h-36 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartSeries} margin={{ top: 6, right: 6, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis
+                  dataKey="idx"
+                  type="number"
+                  domain={['dataMin', 'dataMax']}
+                  tickCount={5}
+                  tickFormatter={(value) => chartSeries[value]?.t ?? ''}
+                  tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  domain={[0, Math.ceil(maxY * 1.1)]}
+                  width={30}
+                  tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))' }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <ReferenceLine y={reorderPoint} stroke="#f59e0b" strokeDasharray="3 4" strokeOpacity={0.7} />
+                <ReferenceLine y={safetyStock} stroke="#ef4444" strokeDasharray="3 4" strokeOpacity={0.7} />
+                <Area type="stepAfter" dataKey="onHand" stroke="none" fill="#0ea5e9" fillOpacity={0.08} isAnimationActive={false} />
+                <Line
+                  type="stepAfter"
+                  dataKey="onHand"
+                  stroke="#0ea5e9"
+                  strokeWidth={2.5}
+                  dot={false}
+                  isAnimationActive={false}
+                />
+                <Tooltip
+                  cursor={{ stroke: '#94a3b8', strokeDasharray: '3 3' }}
+                  content={renderChartTooltip}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="mt-1 flex flex-nowrap items-center gap-1 text-[10px]">
+            <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-sky-700 dark:bg-sky-950/40 dark:text-sky-200">
+              <span className="h-1.5 w-3 rounded bg-sky-500" />
+              Onhand
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
+              <span className="h-1.5 w-3 rounded bg-amber-500" />
+              Reorder
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-rose-700 dark:bg-rose-950/40 dark:text-rose-200">
+              <span className="h-1.5 w-3 rounded bg-rose-500" />
+              Safety
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-4 gap-1.5">
+            <div className="rounded-md border border-border/60 bg-muted/20 px-2 py-1">
+              <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Onhand</p>
+              <p className="inline-flex items-center gap-1 text-[12px] font-semibold text-foreground"><Boxes className="h-3 w-3 text-muted-foreground" />{onHand}</p>
+            </div>
+            <div className="rounded-md border border-border/60 bg-muted/20 px-2 py-1">
+              <p className="text-[9px] uppercase tracking-wide text-muted-foreground">PR</p>
+              <p className="inline-flex items-center gap-1 text-[12px] font-semibold text-foreground"><TrendingUp className="h-3 w-3 text-muted-foreground" />{reorderQty}</p>
+            </div>
+            <div className="rounded-md border border-border/60 bg-muted/20 px-2 py-1">
+              <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Reorder</p>
+              <p className="inline-flex items-center gap-1 text-[12px] font-semibold text-foreground"><AlertTriangle className="h-3 w-3 text-muted-foreground" />{reorderPoint}</p>
+            </div>
+            <div className="rounded-md border border-border/60 bg-muted/20 px-2 py-1">
+              <p className="text-[9px] uppercase tracking-wide text-muted-foreground">Safety</p>
+              <p className="inline-flex items-center gap-1 text-[12px] font-semibold text-foreground"><ShieldAlert className="h-3 w-3 text-muted-foreground" />{safetyStock}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-1 text-[10px] text-muted-foreground">
+          <div className="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background px-2 py-0.5">
+            <CalendarDays className="h-3.5 w-3.5" />
+            <span>{leadTime}d</span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background px-2 py-0.5">
+            <DollarSign className="h-3.5 w-3.5" />
+            <span>{unitCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background px-2 py-0.5">
+            <Package className="h-3.5 w-3.5" />
+            <span className="truncate">{category}</span>
+          </div>
+          <div className="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background px-2 py-0.5">
+            <Ruler className="h-3.5 w-3.5" />
+            <span>{unit}</span>
+          </div>
+          <div className="col-span-2 inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-background px-2 py-0.5">
+            <Building2 className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{supplier}</span>
+          </div>
+        </div>
+      </>
+    )
+  }
 
   return (
     <div className="h-full min-h-0 overflow-y-auto lg:overflow-hidden">
@@ -744,8 +1091,8 @@ export function ReceiveItems() {
                   <div className="min-h-0 flex-1 space-y-2 overflow-y-scroll pr-2 [scrollbar-gutter:stable]">
                     {filteredTodayPrGuide.map((pr, index) => {
                       const etaMeta = getEtaMeta(pr.expectedDate)
-                      const StatusIcon = getPrStatusIcon(pr.status)
                       const EtaHintIcon = etaMeta.hintIcon
+                      const followUpMeta = getTodayFollowUpMeta(pr.expectedDate)
 
                       return (
                         <motion.div
@@ -760,10 +1107,12 @@ export function ReceiveItems() {
                               <Package className="h-3.5 w-3.5" />
                               {pr.prNumber}
                             </p>
-                            <Badge variant="outline" className={`text-[10px] ${getPrStatusBadgeClass(pr.status)}`}>
-                              <StatusIcon className="mr-1 h-3 w-3" />
-                              {formatPrStatus(pr.status)}
-                            </Badge>
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="outline" className={`text-[10px] ${followUpMeta.className}`}>
+                                {followUpMeta.label}
+                              </Badge>
+                              <PRStatusBadge status={pr.status} showIcon className="h-5 px-2 text-[10px]" iconClassName="h-3 w-3" />
+                            </div>
                           </div>
                           <div className="mb-2 flex flex-wrap items-center gap-1.5">
                             <Badge variant="outline" className={`h-6 gap-1 rounded-md px-2 text-[11px] ${etaMeta.etaBadgeClass}`}>
@@ -776,34 +1125,50 @@ export function ReceiveItems() {
                             </Badge>
                           </div>
                           <div className="space-y-1">
+                            <div className="grid grid-cols-[minmax(0,1fr)_88px_76px] items-center gap-2 px-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              <span>Item name</span>
+                              <span className="text-center">Onhand</span>
+                              <span className="text-right">PR Q&apos;ty</span>
+                            </div>
                             {pr.items.map((item) => (
                               <div
                                 key={`${pr.id}-${item.sku}-${item.itemName}`}
-                                className="flex items-center gap-1.5 text-xs text-blue-950/90 dark:text-blue-100/90"
+                                className="grid w-full grid-cols-[minmax(0,1fr)_88px_76px] items-center gap-2 text-xs text-blue-950/90 dark:text-blue-100/90"
                               >
-                                <Package className="h-3.5 w-3.5 text-muted-foreground/80" />
-                                <span>{item.itemName} ({item.sku}) x</span>
-                                <Badge className="h-5 bg-emerald-500 px-2 text-[11px] text-white hover:bg-emerald-500">
-                                  <Hash className="mr-1 h-3 w-3" />
-                                  {item.remainingQuantity}
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                  <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+                                  <HoverCard openDelay={120} closeDelay={80}>
+                                    <HoverCardTrigger asChild>
+                                      <span className="min-w-0 cursor-default truncate">
+                                        {item.itemName} ({item.sku}) · {itemBySku.get(item.sku)?.unit || 'pcs'}
+                                      </span>
+                                    </HoverCardTrigger>
+                                    <HoverCardContent align="start" className="w-[340px] space-y-2">
+                                      {renderItemHoverCard(item)}
+                                    </HoverCardContent>
+                                  </HoverCard>
+                                  {stockMetaBySku.get(item.sku)?.isCritical ? (
+                                    <Badge variant="destructive" className="h-5 shrink-0 px-2 text-[10px]">
+                                      Critical
+                                    </Badge>
+                                  ) : null}
+                                </span>
+                                <Badge variant="outline" className="h-5 justify-center border-border bg-muted/50 px-2 text-[11px] text-foreground">
+                                  {stockMetaBySku.get(item.sku)?.onHand ?? 0}
+                                </Badge>
+                                <Badge className="h-5 justify-self-end bg-emerald-500 px-2 text-[11px] text-white hover:bg-emerald-500">
+                                  +{item.remainingQuantity}
                                 </Badge>
                               </div>
                             ))}
                           </div>
                           <div className="mt-3 flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              className={COMPACT_PRIMARY_BUTTON_CLASS}
-                              onClick={() => openPrReceiveDialog(pr)}
-                              disabled={isLoadingPrReceiveDetail}
-                            >
+                            <Button onClick={() => openPrReceiveDialog(pr)} disabled={isLoadingPrReceiveDetail}>
                               <PackagePlus className="mr-1 h-3.5 w-3.5" />
                               Receive
                             </Button>
                             <Button
-                              size="sm"
                               variant="outline"
-                              className={COMPACT_OUTLINE_BUTTON_CLASS}
                               onClick={() => openMoveEtaDialog(pr)}
                             >
                               <CalendarDays className="mr-1 h-3.5 w-3.5" />
@@ -853,7 +1218,6 @@ export function ReceiveItems() {
                   <div className="min-h-0 flex-1 space-y-2 overflow-y-scroll pr-2 [scrollbar-gutter:stable]">
                     {filteredWeekPrGuide.map((pr, index) => {
                       const etaMeta = getEtaMeta(pr.expectedDate)
-                      const StatusIcon = getPrStatusIcon(pr.status)
                       const EtaHintIcon = etaMeta.hintIcon
 
                       return (
@@ -869,10 +1233,7 @@ export function ReceiveItems() {
                               <Package className="h-3.5 w-3.5" />
                               {pr.prNumber}
                             </p>
-                            <Badge variant="outline" className={`text-[10px] ${getPrStatusBadgeClass(pr.status)}`}>
-                              <StatusIcon className="mr-1 h-3 w-3" />
-                              {formatPrStatus(pr.status)}
-                            </Badge>
+                            <PRStatusBadge status={pr.status} showIcon className="h-5 px-2 text-[10px]" iconClassName="h-3 w-3" />
                           </div>
                           <div className="mb-2 flex flex-wrap items-center gap-1.5">
                             <Badge variant="outline" className={`h-6 gap-1 rounded-md px-2 text-[11px] ${etaMeta.etaBadgeClass}`}>
@@ -885,34 +1246,50 @@ export function ReceiveItems() {
                             </Badge>
                           </div>
                           <div className="space-y-1">
+                            <div className="grid grid-cols-[minmax(0,1fr)_88px_76px] items-center gap-2 px-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                              <span>Item name</span>
+                              <span className="text-center">Onhand</span>
+                              <span className="text-right">PR Q&apos;ty</span>
+                            </div>
                             {pr.items.map((item) => (
                               <div
                                 key={`${pr.id}-${item.sku}-${item.itemName}`}
-                                className="flex items-center gap-1.5 text-xs text-sky-950/90 dark:text-sky-100/90"
+                                className="grid w-full grid-cols-[minmax(0,1fr)_88px_76px] items-center gap-2 text-xs text-sky-950/90 dark:text-sky-100/90"
                               >
-                                <Package className="h-3.5 w-3.5 text-muted-foreground/80" />
-                                <span>{item.itemName} ({item.sku}) x</span>
-                                <Badge className="h-5 bg-emerald-500 px-2 text-[11px] text-white hover:bg-emerald-500">
-                                  <Hash className="mr-1 h-3 w-3" />
-                                  {item.remainingQuantity}
+                                <span className="flex min-w-0 items-center gap-1.5">
+                                  <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground/80" />
+                                  <HoverCard openDelay={120} closeDelay={80}>
+                                    <HoverCardTrigger asChild>
+                                      <span className="min-w-0 cursor-default truncate">
+                                        {item.itemName} ({item.sku}) · {itemBySku.get(item.sku)?.unit || 'pcs'}
+                                      </span>
+                                    </HoverCardTrigger>
+                                    <HoverCardContent align="start" className="w-[340px] space-y-2">
+                                      {renderItemHoverCard(item)}
+                                    </HoverCardContent>
+                                  </HoverCard>
+                                  {stockMetaBySku.get(item.sku)?.isCritical ? (
+                                    <Badge variant="destructive" className="h-5 shrink-0 px-2 text-[10px]">
+                                      Critical
+                                    </Badge>
+                                  ) : null}
+                                </span>
+                                <Badge variant="outline" className="h-5 justify-center border-border bg-muted/50 px-2 text-[11px] text-foreground">
+                                  {stockMetaBySku.get(item.sku)?.onHand ?? 0}
+                                </Badge>
+                                <Badge className="h-5 justify-self-end bg-emerald-500 px-2 text-[11px] text-white hover:bg-emerald-500">
+                                  +{item.remainingQuantity}
                                 </Badge>
                               </div>
                             ))}
                           </div>
                           <div className="mt-3 flex items-center gap-2">
-                            <Button
-                              size="sm"
-                              className={COMPACT_PRIMARY_BUTTON_CLASS}
-                              onClick={() => openPrReceiveDialog(pr)}
-                              disabled={isLoadingPrReceiveDetail}
-                            >
+                            <Button onClick={() => openPrReceiveDialog(pr)} disabled={isLoadingPrReceiveDetail}>
                               <PackagePlus className="mr-1 h-3.5 w-3.5" />
                               Receive
                             </Button>
                             <Button
-                              size="sm"
                               variant="outline"
-                              className={COMPACT_OUTLINE_BUTTON_CLASS}
                               onClick={() => openMoveEtaDialog(pr)}
                             >
                               <CalendarDays className="mr-1 h-3.5 w-3.5" />
@@ -936,11 +1313,7 @@ export function ReceiveItems() {
               Recent Receive
             </CardTitle>
             <CardDescription>{filteredTransactions.length} transactions</CardDescription>
-            <Button
-              onClick={handleOpenDialog}
-              size="sm"
-              className={`w-full sm:absolute sm:right-6 sm:top-6 sm:w-auto ${COMPACT_PRIMARY_BUTTON_CLASS}`}
-            >
+            <Button onClick={handleOpenDialog} className="w-full sm:absolute sm:right-6 sm:top-6 sm:w-auto">
               <PackagePlus className="mr-2 h-4 w-4" />
               Quick Receive
             </Button>
@@ -967,7 +1340,7 @@ export function ReceiveItems() {
             ) : (
               <div className="h-full min-h-0 overflow-hidden rounded-lg border border-border/70 bg-background">
                 <div className="h-full overflow-auto">
-                <Table className="min-w-[640px]">
+                <Table className="min-w-[640px] text-sm">
                   <TableHeader>
                     <TableRow>
                       <TableHead>Item</TableHead>
@@ -985,17 +1358,24 @@ export function ReceiveItems() {
                       return (
                         <TableRow key={txn.id}>
                           <TableCell>
-                            <p className="font-medium">{itemName}</p>
-                            <p className="text-xs text-muted-foreground">{itemSku}</p>
+                            <p className="font-medium">
+                              <ItemNameHoverCard
+                                name={itemName}
+                                sku={itemSku}
+                                item={fallbackItem}
+                                transactions={allTransactions}
+                                className="cursor-default"
+                              />
+                            </p>
+                            <p className="text-sm text-muted-foreground">{itemSku}</p>
                           </TableCell>
                           <TableCell>
                             <Badge className="bg-emerald-500 text-white hover:bg-emerald-500">
-                              <Hash className="mr-1 h-3 w-3" />
-                              {txn.quantity}
+                              +{txn.quantity}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-xs text-muted-foreground">{txn.notes || '-'}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground">
+                          <TableCell className="text-sm text-muted-foreground">{txn.notes || '-'}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
                             {new Date(txn.created_at).toLocaleString()}
                           </TableCell>
                         </TableRow>

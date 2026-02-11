@@ -99,7 +99,9 @@ export interface Item {
   name: string;
   category: string;
   quantity: number;
+  unit?: string;
   minQuantity?: number;
+  min_quantity?: number;
   reorder_point: number;
   reorder_quantity: number;
   safety_stock: number;
@@ -107,6 +109,7 @@ export interface Item {
   unit_cost: number;
   supplier_name: string;
   supplier_contact?: string;
+  image_url?: string;
   created_at: string;
   updated_at: string;
   // Fields from backend API response (optional)
@@ -368,6 +371,7 @@ export async function createItem(data: {
   unit_cost?: number;
   supplier_name?: string;
   supplier_contact?: string;
+  image_url?: string;
 }): Promise<{ id: number }> {
   const response = await fetch(`${API_BASE_URL}/items`, {
     method: 'POST',
