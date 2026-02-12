@@ -23,9 +23,9 @@ const getItemSku = (item: ItemLike): string => {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { ItemNameHoverCard } from '@/components/ui/item-name-hover-card';
 import { PRPriorityBadge } from '@/components/ui/pr-priority-badge';
 import { PRStatusBadge } from '@/components/ui/pr-status-badge';
-import { H1, Lead } from '@/components/ui/typography';
 import { 
   FileText, 
   ArrowLeft,
@@ -90,6 +90,14 @@ interface PRExportData {
   notes?: string;
   total_amount: number;
   items: ExportItemRow[];
+}
+
+const formatDisplayDate = (value: string) => {
+  const date = new Date(value)
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = date.toLocaleString('en-US', { month: 'short' })
+  const year = String(date.getFullYear()).slice(-2)
+  return `${day}/${month}/${year}`
 }
 
 export function PRDetail() {
@@ -213,37 +221,35 @@ export function PRDetail() {
   
   const totalActual = pr.items?.reduce((sum, item) => 
     sum + (item.received_quantity * (item.actual_unit_cost || item.estimated_unit_cost)), 0) || 0;
+  const hasReceivingInfo = Boolean(pr.po_number || pr.supplier_name)
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate('/prs')}>
-          <ArrowLeft className="w-4 h-4 mr-1" />
-          Back
-        </Button>
-        <div>
-          <H1 className="text-3xl">PR Details</H1>
-          <Lead>{pr.pr_number}</Lead>
-        </div>
-      </div>
-
+    <div className="h-full min-h-0 overflow-y-auto lg:overflow-hidden">
+      <div className="h-full min-h-0 flex flex-col gap-4 px-2.5 pt-2.5 pb-1.5 lg:px-3.5 lg:pt-3.5 lg:pb-2.5">
       {/* Header Info */}
-      <Card>
+      <Card className="shrink-0 border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
         <CardContent className="p-6">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => navigate('/prs')}
+                  aria-label="Back to PR list"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </Button>
                 <FileText className="w-5 h-5 text-blue-500" />
                 <span className="font-semibold text-xl">{pr.pr_number}</span>
                 <PRStatusBadge status={pr.status} />
                 <PRPriorityBadge priority={pr.priority} />
               </div>
-              <div className="text-sm text-gray-500">
-                Created on {new Date(pr.created_at).toLocaleDateString('th-TH')}
-              </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col items-end gap-2">
+              <div className="flex gap-2">
               <Button variant="outline" onClick={exportToExcel}>
                 <Download className="w-4 h-4 mr-1" />
                 Export Excel
@@ -254,59 +260,51 @@ export function PRDetail() {
                   Receive
                 </Button>
               )}
+              </div>
+              <div className="text-sm text-gray-500">
+                Created on {formatDisplayDate(pr.created_at)}
+              </div>
             </div>
           </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-3 border-t pt-4 text-sm text-muted-foreground sm:grid-cols-2 lg:grid-cols-4">
+            <div className="flex items-center gap-2">
+              <User className="h-4 w-4 text-gray-400" />
+              <span className="truncate">{pr.requester_name}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Building className="h-4 w-4 text-gray-400" />
+              <span className="truncate">{pr.department_name}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Store className="h-4 w-4 text-gray-400" />
+              <span className="truncate">{pr.store_name}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-gray-400" />
+              <span>{new Date(pr.required_date).toLocaleDateString('th-TH')}</span>
+            </div>
+          </div>
+
+          {pr.notes ? (
+            <div className="mt-3 rounded-md bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">Notes:</span> {pr.notes}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
-      <div className="grid grid-cols-2 gap-6">
-        {/* Left: Info */}
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">General Information</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-2">
-                <User className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-500">Requester:</span>
-                <span>{pr.requester_name}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Building className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-500">Department:</span>
-                <span>{pr.department_name}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Store className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-500">Store:</span>
-                <span>{pr.store_name}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-500">Required Date:</span>
-                <span>{new Date(pr.required_date).toLocaleDateString('th-TH')}</span>
-              </div>
-
-              {pr.notes && (
-                <div className="pt-2 border-t">
-                  <span className="text-gray-500">Notes:</span>
-                  <p className="mt-1">{pr.notes}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* PO Info if received */}
-          {(pr.po_number || pr.supplier_name) && (
-            <Card>
+      {hasReceivingInfo ? (
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 lg:grid-cols-3">
+          <div className="min-h-0 lg:col-span-1">
+            <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Package className="w-5 h-5" />
                   Receiving Information
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="min-h-0 flex-1 space-y-4 overflow-auto">
                 {pr.po_number && (
                   <div>
                     <span className="text-gray-500">Supplier PO Number:</span>
@@ -327,71 +325,165 @@ export function PRDetail() {
                 )}
               </CardContent>
             </Card>
-          )}
-        </div>
+          </div>
 
-        {/* Right: Items */}
-        <div>
-          <Card>
+          <div className="min-h-0 lg:col-span-2">
+            <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
+              <CardHeader>
+                <CardTitle className="text-lg">Items ({pr.items?.length || 0})</CardTitle>
+              </CardHeader>
+              <CardContent className="min-h-0 flex flex-1 flex-col px-4 pb-4 pt-0">
+                <div className="h-full min-h-0 flex-1 overflow-hidden rounded-lg border border-border/70 bg-background">
+                  <div className="h-full overflow-auto">
+                    <table className="w-full min-w-[940px] border-collapse text-sm">
+                      <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
+                        <tr className="border-b border-border">
+                          <th className="h-12 px-4 align-middle font-medium">Item</th>
+                          <th className="h-12 px-4 align-middle font-medium">SKU</th>
+                          <th className="h-12 px-4 align-middle font-medium">Qty (Rcv/Req)</th>
+                          <th className="h-12 px-4 text-right align-middle font-medium">Est. Price</th>
+                          <th className="h-12 px-4 text-right align-middle font-medium">Actual Price</th>
+                          <th className="h-12 px-4 text-right align-middle font-medium">Total</th>
+                          <th className="h-12 px-4 align-middle font-medium">Notes</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pr.items?.map((item) => (
+                          <tr key={item.id} className="border-b border-border transition-colors hover:bg-muted/50">
+                            <td className="px-4 py-3 font-medium">
+                              <ItemNameHoverCard
+                                name={getItemName(item)}
+                                sku={getItemSku(item)}
+                                item={{
+                                  id: item.master_item_id,
+                                  name: getItemName(item),
+                                  sku: getItemSku(item),
+                                  unit: item.unit,
+                                  reorder_quantity: item.quantity,
+                                }}
+                                className="cursor-default"
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <code className="rounded bg-muted px-2 py-1 text-xs">
+                                {getItemSku(item)}
+                              </code>
+                              <span className="ml-2 text-muted-foreground">{item.unit}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge variant="outline">
+                                {item.received_quantity || 0} / {item.quantity}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-3 text-right">฿{item.estimated_unit_cost?.toLocaleString()}</td>
+                            <td className="px-4 py-3 text-right">
+                              {item.actual_unit_cost ? `฿${item.actual_unit_cost.toLocaleString()}` : '-'}
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium">
+                              ฿{((item.received_quantity || item.quantity) * (item.actual_unit_cost || item.estimated_unit_cost)).toLocaleString()}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground">{item.notes || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div className="mt-2 shrink-0 rounded-md border border-border/70 bg-muted/20 px-4 py-2 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-muted-foreground">Total Estimated</span>
+                    <span className="font-semibold">฿{totalEstimated.toLocaleString()}</span>
+                  </div>
+                  {pr.status === 'partially_received' || pr.status === 'fully_received' ? (
+                    <div className="mt-1 flex items-center justify-between">
+                      <span className="font-medium text-muted-foreground">Total Actual</span>
+                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">฿{totalActual.toLocaleString()}</span>
+                    </div>
+                  ) : null}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1">
+          <Card className="flex h-full min-h-0 flex-col overflow-hidden border-border/70 bg-background/90 dark:border-border/60 dark:bg-background/70">
             <CardHeader>
               <CardTitle className="text-lg">Items ({pr.items?.length || 0})</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {pr.items?.map((item) => (
-                  <div key={item.id} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-medium">{getItemName(item)}</div>
-                        <div className="text-sm text-gray-500">
-                          SKU: {getItemSku(item)} | {item.unit}
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <Badge variant="outline">
-                          {item.received_quantity || 0} / {item.quantity}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-4 mt-3 text-sm">
-                      <div>
-                        <span className="text-gray-500">Est. Price:</span>
-                        <p>฿{item.estimated_unit_cost?.toLocaleString()}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Actual Price:</span>
-                        <p>฿{item.actual_unit_cost?.toLocaleString() || '-'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Total:</span>
-                        <p className="font-medium">
-                          ฿{((item.received_quantity || item.quantity) * (item.actual_unit_cost || item.estimated_unit_cost)).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                    {item.notes && (
-                      <p className="text-sm text-gray-500 mt-2">Notes: {item.notes}</p>
-                    )}
-                  </div>
-                ))}
-
-                {/* Totals */}
-                <div className="border-t pt-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-500">Total Estimated:</span>
-                    <span>฿{totalEstimated.toLocaleString()}</span>
-                  </div>
-                  {(pr.status === 'partially_received' || pr.status === 'fully_received') && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Total Actual:</span>
-                      <span className="font-bold text-green-600">฿{totalActual.toLocaleString()}</span>
-                    </div>
-                  )}
+            <CardContent className="min-h-0 flex flex-1 flex-col px-4 pb-4 pt-0">
+              <div className="h-full min-h-0 flex-1 overflow-hidden rounded-lg border border-border/70 bg-background">
+                <div className="h-full overflow-auto">
+                  <table className="w-full min-w-[940px] border-collapse text-sm">
+                    <thead className="sticky top-0 z-10 overflow-hidden rounded-t-lg bg-muted/50 text-left text-sm text-muted-foreground backdrop-blur-xl">
+                      <tr className="border-b border-border">
+                        <th className="h-12 px-4 align-middle font-medium">Item</th>
+                        <th className="h-12 px-4 align-middle font-medium">SKU</th>
+                        <th className="h-12 px-4 align-middle font-medium">Qty (Rcv/Req)</th>
+                        <th className="h-12 px-4 text-right align-middle font-medium">Est. Price</th>
+                        <th className="h-12 px-4 text-right align-middle font-medium">Actual Price</th>
+                        <th className="h-12 px-4 text-right align-middle font-medium">Total</th>
+                        <th className="h-12 px-4 align-middle font-medium">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pr.items?.map((item) => (
+                        <tr key={item.id} className="border-b border-border transition-colors hover:bg-muted/50">
+                          <td className="px-4 py-3 font-medium">
+                            <ItemNameHoverCard
+                              name={getItemName(item)}
+                              sku={getItemSku(item)}
+                              item={{
+                                id: item.master_item_id,
+                                name: getItemName(item),
+                                sku: getItemSku(item),
+                                unit: item.unit,
+                                reorder_quantity: item.quantity,
+                              }}
+                              className="cursor-default"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <code className="rounded bg-muted px-2 py-1 text-xs">
+                              {getItemSku(item)}
+                            </code>
+                            <span className="ml-2 text-muted-foreground">{item.unit}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge variant="outline">
+                              {item.received_quantity || 0} / {item.quantity}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-right">฿{item.estimated_unit_cost?.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-right">
+                            {item.actual_unit_cost ? `฿${item.actual_unit_cost.toLocaleString()}` : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-right font-medium">
+                            ฿{((item.received_quantity || item.quantity) * (item.actual_unit_cost || item.estimated_unit_cost)).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">{item.notes || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
+              </div>
+              <div className="mt-2 shrink-0 rounded-md border border-border/70 bg-muted/20 px-4 py-2 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-muted-foreground">Total Estimated</span>
+                  <span className="font-semibold">฿{totalEstimated.toLocaleString()}</span>
+                </div>
+                {pr.status === 'partially_received' || pr.status === 'fully_received' ? (
+                  <div className="mt-1 flex items-center justify-between">
+                    <span className="font-medium text-muted-foreground">Total Actual</span>
+                    <span className="font-semibold text-emerald-600 dark:text-emerald-400">฿{totalActual.toLocaleString()}</span>
+                  </div>
+                ) : null}
               </div>
             </CardContent>
           </Card>
         </div>
+      )}
       </div>
     </div>
   );

@@ -114,6 +114,7 @@ async function createNotification({ type, title, message, data = null, link = ''
 const db = new Database('./data/warehouse.db', logger);
 db.initialize();
 bootstrapCategoryMaster().catch((error) => logger.error('Category bootstrap failed:', error));
+ensureItemsAttachmentsColumn().catch((error) => logger.error('Attachments column migration failed:', error));
 
 // Initialize services
 const inventoryService = new InventoryService(db, logger);
@@ -195,6 +196,32 @@ async function bootstrapCategoryMaster(retriesLeft = 20) {
     logger.info(`Category master bootstrapped (${legacyCategories.length} legacy categories merged)`);
   } catch (error) {
     logger.error('Failed to bootstrap category master:', error);
+  }
+}
+
+async function ensureItemsAttachmentsColumn(retriesLeft = 20) {
+  if (!db.isReady()) {
+    if (retriesLeft <= 0) {
+      logger.warn('Skipped attachments column migration because database is not ready');
+      return;
+    }
+    setTimeout(() => {
+      ensureItemsAttachmentsColumn(retriesLeft - 1).catch((error) => {
+        logger.error('Attachments column migration retry failed:', error);
+      });
+    }, 250);
+    return;
+  }
+
+  try {
+    const columns = await db.all(`PRAGMA table_info(items)`);
+    const hasAttachmentsColumn = columns.some((column) => column.name === 'attachments_json');
+    if (!hasAttachmentsColumn) {
+      await db.run(`ALTER TABLE items ADD COLUMN attachments_json TEXT`);
+      logger.info('Added items.attachments_json column');
+    }
+  } catch (error) {
+    logger.error('Failed to ensure items.attachments_json column:', error);
   }
 }
 
@@ -471,7 +498,7 @@ app.post('/api/items', async (req, res) => {
     const {
       sku, name, description, category, unit, min_quantity,
       reorder_point, reorder_quantity, safety_stock, lead_time_days,
-      unit_cost, supplier_name, supplier_contact, image_url
+      unit_cost, supplier_name, supplier_contact, image_url, attachments
     } = req.body;
 
     if (!sku || !name || !category) {
@@ -483,17 +510,31 @@ app.post('/api/items', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid category. Please select an active category from Settings > Category.' });
     }
 
+    const serializedAttachments = Array.isArray(attachments)
+      ? JSON.stringify(
+        attachments
+          .filter((attachment) => attachment && typeof attachment === 'object')
+          .map((attachment) => ({
+            name: String(attachment.name || ''),
+            type: String(attachment.type || ''),
+            size: Number(attachment.size || 0),
+            data_url: String(attachment.data_url || '')
+          }))
+          .filter((attachment) => attachment.name && attachment.data_url)
+      )
+      : null;
+
     const result = await new Promise((resolve, reject) => {
       db.db.run(`
         INSERT INTO items (
           sku, name, description, category, unit, min_quantity,
           reorder_point, reorder_quantity, safety_stock, lead_time_days,
-          unit_cost, supplier_name, supplier_contact, image_url
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          unit_cost, supplier_name, supplier_contact, image_url, attachments_json
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `, [
         sku, name, description, categoryRecord.name, unit || 'pcs', min_quantity || 0,
         reorder_point || 0, reorder_quantity || 0, safety_stock || 0, lead_time_days || 7,
-        unit_cost || 0, supplier_name, supplier_contact, image_url || null
+        unit_cost || 0, supplier_name, supplier_contact, image_url || null, serializedAttachments
       ], function(err) {
         if (err) reject(err);
         else resolve({ id: this.lastID });
@@ -517,8 +558,23 @@ app.put('/api/items/:id', async (req, res) => {
     const allowedFields = [
       'sku', 'name', 'description', 'category', 'unit', 'quantity',
       'min_quantity', 'reorder_point', 'reorder_quantity', 'safety_stock',
-      'lead_time_days', 'unit_cost', 'supplier_name', 'supplier_contact', 'image_url'
+      'lead_time_days', 'unit_cost', 'supplier_name', 'supplier_contact', 'image_url',
+      'attachments_json'
     ];
+
+    if (Array.isArray(updates.attachments)) {
+      updates.attachments_json = JSON.stringify(
+        updates.attachments
+          .filter((attachment) => attachment && typeof attachment === 'object')
+          .map((attachment) => ({
+            name: String(attachment.name || ''),
+            type: String(attachment.type || ''),
+            size: Number(attachment.size || 0),
+            data_url: String(attachment.data_url || '')
+          }))
+          .filter((attachment) => attachment.name && attachment.data_url)
+      );
+    }
 
     const fields = Object.keys(updates).filter(key => allowedFields.includes(key));
     if (fields.length === 0) {

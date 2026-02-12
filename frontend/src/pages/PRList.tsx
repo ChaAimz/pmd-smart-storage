@@ -284,7 +284,16 @@ export function PRList() {
                       const nextAction = getNextAction(pr);
                       return (
                         <tr key={pr.id} className="border-b border-border transition-colors hover:bg-muted/50">
-                          <td className="px-4 py-3 font-medium">{pr.pr_number}</td>
+                          <td className="px-4 py-3 font-medium">
+                            <Button
+                              type="button"
+                              variant="link"
+                              className="h-auto p-0 font-semibold text-foreground hover:text-primary"
+                              onClick={() => navigate(`/prs/${pr.id}`)}
+                            >
+                              {pr.pr_number}
+                            </Button>
+                          </td>
                           <td className="px-4 py-3">
                             <PRStatusBadge status={pr.status} />
                           </td>

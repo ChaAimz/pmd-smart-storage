@@ -61,6 +61,7 @@ class Database {
         supplier_name TEXT,
         supplier_contact TEXT,
         image_url TEXT,
+        attachments_json TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );

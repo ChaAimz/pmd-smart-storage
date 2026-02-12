@@ -110,6 +110,7 @@ export interface Item {
   supplier_name: string;
   supplier_contact?: string;
   image_url?: string;
+  attachments_json?: string;
   created_at: string;
   updated_at: string;
   // Fields from backend API response (optional)
@@ -372,6 +373,12 @@ export async function createItem(data: {
   supplier_name?: string;
   supplier_contact?: string;
   image_url?: string;
+  attachments?: Array<{
+    name: string;
+    type: string;
+    size: number;
+    data_url: string;
+  }>;
 }): Promise<{ id: number }> {
   const response = await fetch(`${API_BASE_URL}/items`, {
     method: 'POST',

@@ -435,8 +435,17 @@ export function AdjustStock() {
                           </code>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={txn.quantity > 0 ? 'default' : 'destructive'} className={txn.quantity > 0 ? 'bg-green-500' : ''}>
-                            {txn.quantity > 0 ? '+' : ''}{txn.quantity}
+                          <Badge
+                            className={
+                              txn.quantity > 0
+                                ? 'bg-emerald-500 text-white hover:bg-emerald-500'
+                                : txn.quantity < 0
+                                  ? 'bg-rose-500 text-white hover:bg-rose-500'
+                                  : 'bg-slate-500 text-white hover:bg-slate-500'
+                            }
+                          >
+                            {txn.quantity > 0 ? '+' : ''}
+                            {txn.quantity}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
