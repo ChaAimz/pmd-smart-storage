@@ -3,10 +3,13 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "dev:test": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test/start-local-dev.ps1",
-    "dev:test:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test/start-local-dev.ps1 -BackendDev",
-    "dev:test:no-browser": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test/start-local-dev.ps1 -OpenBrowser:$false",
-    "dev:test:firewall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test/start-local-dev.ps1 -EnsureFirewall",
+    "dev:test": "npm run dev:test:unix",
+    "dev:test:backend": "npm run dev:test:unix -- --backend-dev",
+    "dev:test:no-browser": "npm run dev:test:unix -- --no-browser",
+    "dev:test:unix": "bash ./scripts/test/start-local-dev.sh",
+    "dev:test:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test/start-local-dev.ps1",
+    "dev:test:windows:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test/start-local-dev.ps1 -BackendDev",
+    "dev:test:windows:no-browser": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/test/start-local-dev.ps1 -OpenBrowser:$false",
     "dev:firewall": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/check/allow-local-dev-firewall.ps1"
   }
 }

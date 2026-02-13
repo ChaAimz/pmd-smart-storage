@@ -129,6 +129,7 @@ class Database {
         unit_cost REAL DEFAULT 0,
         total_cost REAL DEFAULT 0,
         supplier_name TEXT,
+        items_json TEXT,
         status TEXT DEFAULT 'pending',
         expected_date DATE,
         received_date DATE,

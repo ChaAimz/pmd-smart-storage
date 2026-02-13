@@ -26,6 +26,18 @@ async function runSeed() {
       }, 100);
     });
 
+    // Ensure purchase_orders schema is up to date for seeding
+    const poColumns = await db.all(`PRAGMA table_info(purchase_orders)`);
+    const poColumnNames = new Set(poColumns.map((column) => column.name));
+    if (!poColumnNames.has('items_json')) {
+      await db.run(`ALTER TABLE purchase_orders ADD COLUMN items_json TEXT`);
+      logger.info('Added purchase_orders.items_json column for seed');
+    }
+    if (!poColumnNames.has('po_number')) {
+      await db.run(`ALTER TABLE purchase_orders ADD COLUMN po_number TEXT`);
+      logger.info('Added purchase_orders.po_number column for seed');
+    }
+
     // Run seed
     await seedDatabase(db);
 
@@ -49,4 +61,3 @@ async function runSeed() {
 }
 
 runSeed();
-

@@ -115,6 +115,7 @@ const db = new Database('./data/warehouse.db', logger);
 db.initialize();
 bootstrapCategoryMaster().catch((error) => logger.error('Category bootstrap failed:', error));
 ensureItemsAttachmentsColumn().catch((error) => logger.error('Attachments column migration failed:', error));
+ensurePurchaseOrdersColumns().catch((error) => logger.error('Purchase orders column migration failed:', error));
 
 // Initialize services
 const inventoryService = new InventoryService(db, logger);
@@ -222,6 +223,38 @@ async function ensureItemsAttachmentsColumn(retriesLeft = 20) {
     }
   } catch (error) {
     logger.error('Failed to ensure items.attachments_json column:', error);
+  }
+}
+
+async function ensurePurchaseOrdersColumns(retriesLeft = 20) {
+  if (!db.isReady()) {
+    if (retriesLeft <= 0) {
+      logger.warn('Skipped purchase orders column migration because database is not ready');
+      return;
+    }
+    setTimeout(() => {
+      ensurePurchaseOrdersColumns(retriesLeft - 1).catch((error) => {
+        logger.error('Purchase orders column migration retry failed:', error);
+      });
+    }, 250);
+    return;
+  }
+
+  try {
+    const columns = await db.all(`PRAGMA table_info(purchase_orders)`);
+    const columnNames = new Set(columns.map((column) => column.name));
+
+    if (!columnNames.has('items_json')) {
+      await db.run(`ALTER TABLE purchase_orders ADD COLUMN items_json TEXT`);
+      logger.info('Added purchase_orders.items_json column');
+    }
+
+    if (!columnNames.has('po_number')) {
+      await db.run(`ALTER TABLE purchase_orders ADD COLUMN po_number TEXT`);
+      logger.info('Added purchase_orders.po_number column');
+    }
+  } catch (error) {
+    logger.error('Failed to ensure purchase_orders columns:', error);
   }
 }
 
@@ -663,12 +696,26 @@ app.post('/api/purchase-orders', async (req, res) => {
     }
 
     const total_cost = items.reduce((sum, item) => sum + (item.unit_cost * item.quantity), 0);
+    const baseItem = items[0] || {};
+    const poNumber = `PO-${new Date().getFullYear()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
 
     const result = await new Promise((resolve, reject) => {
       db.db.run(`
-        INSERT INTO purchase_orders (supplier_name, total_cost, status, created_by, items_json)
-        VALUES (?, ?, 'pending', ?, ?)
-      `, [supplier_name, total_cost, created_by || 1, JSON.stringify(items)], function(err) {
+        INSERT INTO purchase_orders (
+          po_number, item_id, quantity, unit_cost,
+          supplier_name, total_cost, status, created_by, items_json
+        )
+        VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+      `, [
+        poNumber,
+        baseItem.item_id || 1,
+        baseItem.quantity || 0,
+        baseItem.unit_cost || 0,
+        supplier_name,
+        total_cost,
+        created_by || 1,
+        JSON.stringify(items)
+      ], function(err) {
         if (err) reject(err);
         else resolve({ id: this.lastID });
       });

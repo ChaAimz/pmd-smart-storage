@@ -129,8 +129,11 @@ async function seedItems(db) {
     const name = generateItemName();
     
     // Random inventory levels
-    const quantity = Math.floor(Math.random() * 500);
+    let quantity = Math.floor(Math.random() * 500);
     const reorderPoint = Math.floor(Math.random() * 50) + 20;
+    if (i % 12 === 0) {
+      quantity = Math.floor(reorderPoint * (Math.random() * 0.5));
+    }
     const reorderQuantity = Math.floor(Math.random() * 100) + 50;
     const safetyStock = Math.floor(Math.random() * 30) + 10;
     const minQuantity = Math.floor(reorderPoint * 0.5);
@@ -254,28 +257,35 @@ async function seedPurchaseOrders(db) {
   const poCount = 50;
   
   for (let i = 0; i < poCount; i++) {
-    const itemId = Math.floor(Math.random() * 200) + 1;
-    const quantity = Math.floor(Math.random() * 100) + 20;
-    const unitCost = (Math.random() * 500 + 10).toFixed(2);
-    const totalCost = (quantity * unitCost).toFixed(2);
+    const itemsCount = Math.floor(Math.random() * 4) + 1;
+    const items = Array.from({ length: itemsCount }, () => ({
+      item_id: Math.floor(Math.random() * 200) + 1,
+      quantity: Math.floor(Math.random() * 100) + 20,
+      unit_cost: Number((Math.random() * 500 + 10).toFixed(2))
+    }));
+
+    const totalCost = items.reduce((sum, item) => sum + (item.quantity * item.unit_cost), 0);
     const status = statuses[Math.floor(Math.random() * statuses.length)];
     const supplier = suppliers[Math.floor(Math.random() * suppliers.length)];
     
     const expectedDate = new Date();
     expectedDate.setDate(expectedDate.getDate() + Math.floor(Math.random() * 30));
     
+    const baseItem = items[0];
+
     await db.run(
       `INSERT OR IGNORE INTO purchase_orders (
         po_number, item_id, quantity, unit_cost, total_cost,
-        supplier_name, status, expected_date, notes, created_by, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        supplier_name, items_json, status, expected_date, notes, created_by, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         `PO-${new Date().getFullYear()}-${String(i + 1).padStart(4, '0')}-${Date.now().toString(36).slice(-4)}`,
-        itemId,
-        quantity,
-        unitCost,
+        baseItem.item_id,
+        baseItem.quantity,
+        baseItem.unit_cost,
         totalCost,
         supplier.name,
+        JSON.stringify(items),
         status,
         expectedDate.toISOString().split('T')[0],
         `Purchase order for restocking`,
@@ -286,6 +296,29 @@ async function seedPurchaseOrders(db) {
   }
   
   console.log(`✓ Seeded ${poCount} purchase orders`);
+}
+
+// Ensure inventory planning has visible low-stock items
+async function seedInventoryPlanningMockData(db) {
+  console.log('Seeding inventory planning mock data...');
+
+  const candidates = await db.all(`
+    SELECT id, reorder_point
+    FROM items
+    ORDER BY RANDOM()
+    LIMIT 12
+  `);
+
+  for (const item of candidates) {
+    const reorderPoint = Number(item.reorder_point || 0);
+    const newQuantity = Math.max(0, Math.floor(reorderPoint * (Math.random() * 0.5)));
+    await db.run(
+      `UPDATE items SET quantity = ?, updated_at = ? WHERE id = ?`,
+      [newQuantity, new Date().toISOString(), item.id]
+    );
+  }
+
+  console.log(`✓ Updated ${candidates.length} items to low-stock levels`);
 }
 
 // Seed additional 100 items
@@ -351,6 +384,7 @@ async function seedDatabase(db) {
     await seedLocations(db);
     await seedTransactions(db);
     await seedPurchaseOrders(db);
+    await seedInventoryPlanningMockData(db);
     
     console.log('\n✅ Database seeding completed successfully!');
   } catch (error) {
@@ -360,4 +394,3 @@ async function seedDatabase(db) {
 }
 
 module.exports = { seedDatabase, seedAdditionalItems };
-
